@@ -52,6 +52,9 @@ async def edge_store_exception_handler(request: Request, exc: EdgeStoreException
     )
 
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
 app.include_router(api_router)
 
 
@@ -62,6 +65,12 @@ def health_check():
         "app": "EdgeStore",
         "environment_mode": settings.ENVIRONMENT_MODE.value
     }
+
+
+# Mount frontend production build if available for unified single-port deployment
+frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 
 
 if __name__ == "__main__":
