@@ -1,0 +1,27 @@
+[Unit]
+Description=EdgeStore Secure Edge Storage Backend Service
+After=network.target time-sync.target
+Wants=time-sync.target
+RequiresMountsFor=/mnt/edgestore/primary
+
+[Service]
+Type=simple
+User=edgestore
+Group=edgestore
+WorkingDirectory=/opt/edgestore
+EnvironmentFile=/etc/edgestore/edgestore.env
+ExecStart=/opt/edgestore/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 2 --access-log
+Restart=always
+RestartSec=5s
+
+# Security Hardening Directives
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ReadWritePaths=/mnt/edgestore/primary /mnt/edgestore/replica /opt/edgestore/data
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

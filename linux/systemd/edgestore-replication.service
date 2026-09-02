@@ -1,0 +1,18 @@
+[Unit]
+Description=EdgeStore Background Dual-Drive Replication Daemon
+After=edgestore-backend.service
+Requires=edgestore-backend.service
+RequiresMountsFor=/mnt/edgestore/primary /mnt/edgestore/replica
+
+[Service]
+Type=simple
+User=edgestore
+Group=edgestore
+WorkingDirectory=/opt/edgestore
+EnvironmentFile=/etc/edgestore/edgestore.env
+ExecStart=/opt/edgestore/linux/scripts/replicate_storage.sh --continuous
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

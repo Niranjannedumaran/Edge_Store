@@ -1,0 +1,16 @@
+[Unit]
+Description=EdgeStore System & Storage Health Watchdog
+After=edgestore-backend.service
+Requires=edgestore-backend.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/edgestore
+EnvironmentFile=/etc/edgestore/edgestore.env
+ExecStart=/opt/edgestore/linux/scripts/health_check.sh --daemon
+Restart=on-failure
+RestartSec=15s
+
+[Install]
+WantedBy=multi-user.target
