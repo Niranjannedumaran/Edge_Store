@@ -23,6 +23,23 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """
+    Validates password complexity requirements:
+    - Minimum 8 characters
+    - Must contain uppercase, lowercase, and numeric digits
+    """
+    if not password or len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter"
+    if not any(c.islower() for c in password):
+        return False, "Password must contain at least one lowercase letter"
+    if not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one numeric digit"
+    return True, "Password meets complexity requirements"
+
+
 import uuid
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None, jti: Optional[str] = None) -> str:

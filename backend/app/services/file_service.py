@@ -14,18 +14,39 @@ from backend.app.core.exceptions import (
     StorageUnavailableException,
     IntegrityVerificationException,
     FileNotFoundException,
-    AuthorizationException
+    AuthorizationException,
+    SecurityViolationException,
+    ValidationException
 )
 from backend.app.core.logger import logger
+
+DANGEROUS_EXTENSIONS = {
+    ".exe", ".bat", ".cmd", ".sh", ".bash", ".vbs", ".ps1", ".elf",
+    ".bin", ".com", ".scr", ".pif", ".hta", ".cpl", ".jar"
+}
 
 
 class FileService:
 
     @staticmethod
     def sanitize_filename(filename: str) -> str:
-        """Sanitize filename to prevent path traversal and shell injection."""
-        base = os.path.basename(filename)
+        """
+        Sanitize filename to strictly prevent path traversal and directory escape.
+        Extracts base name, neutralizes traversal tokens, removes null bytes and control chars.
+        """
+        if not filename or not filename.strip():
+            return "unnamed_file"
+
+        # Neutralize null bytes and encoded traversal
+        cleaned = filename.replace("\x00", "").replace("%00", "").strip()
+        # Extract base name to strip directory traversal (../../)
+        base = os.path.basename(cleaned)
+        # Neutralize any remaining traversal tokens
+        base = base.replace("..", "_").replace("/", "_").replace("\\", "_")
+        # Allow only safe alphanumeric and standard filename characters
         sanitized = re.sub(r"[^\w\.-]", "_", base)
+        if len(sanitized) > 255:
+            sanitized = sanitized[:255]
         return sanitized or "unnamed_file"
 
     @staticmethod
@@ -146,8 +167,19 @@ class FileService:
 
     @staticmethod
     def rename_file(db: Session, file_id: str, new_filename: str, current_user: User) -> Dict[str, Any]:
-        """Rename an existing file metadata record."""
+        """Rename an existing file metadata record with IDOR protection."""
         stored_file = FileService.get_file(db, file_id, current_user)
+
+        # IDOR Object-Level Authorization: verify ownership unless administrator
+        is_admin = current_user.role in ["super_admin", "storage_admin"] or current_user.has_permission("files.manage")
+        if stored_file.owner_id != current_user.id and not is_admin:
+            AuditService.log_event(
+                db, event_type="ACCESS_DENIED",
+                description=f"User '{current_user.username}' attempted unauthorized rename of file '{stored_file.filename}' owned by user {stored_file.owner_id}",
+                user_id=current_user.id, username=current_user.username, severity="WARNING"
+            )
+            raise AuthorizationException("You do not have permission to modify this resource (ownership required)")
+
         safe_new_name = FileService.sanitize_filename(new_filename)
         old_name = stored_file.filename
 
@@ -169,11 +201,22 @@ class FileService:
     @staticmethod
     def delete_file(db: Session, file_id: str, current_user: User) -> Dict[str, Any]:
         """
-        Careful Delete Workflow:
+        Careful Delete Workflow with IDOR protection:
         Attempts deletion on both primary and replica.
         Handles partial failures truthfully without silently claiming complete deletion.
         """
         stored_file = FileService.get_file(db, file_id, current_user)
+
+        # IDOR Object-Level Authorization: verify ownership unless administrator
+        is_admin = current_user.role in ["super_admin", "storage_admin"] or current_user.has_permission("files.manage")
+        if stored_file.owner_id != current_user.id and not is_admin:
+            AuditService.log_event(
+                db, event_type="ACCESS_DENIED",
+                description=f"User '{current_user.username}' attempted unauthorized deletion of file '{stored_file.filename}' owned by user {stored_file.owner_id}",
+                user_id=current_user.id, username=current_user.username, severity="WARNING"
+            )
+            raise AuthorizationException("You do not have permission to delete this resource (ownership required)")
+
         rel_path = stored_file.storage_path
 
         primary_deleted = False

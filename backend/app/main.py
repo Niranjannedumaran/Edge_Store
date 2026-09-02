@@ -22,6 +22,8 @@ async def lifespan(app: FastAPI):
     logger.info("EdgeStore backend shutting down cleanly")
 
 
+from backend.app.core.middleware import SecurityHeadersMiddleware, RequestSizeLimitMiddleware
+
 app = FastAPI(
     title="EdgeStore Appliance API",
     description="Secure Local Storage Appliance with Hardware Abstraction Layer, Dual-Drive Replication, and LUKS2 Integration",
@@ -29,25 +31,43 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware for local frontend development
+# Defense-in-depth security middlewares
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
+
+# Controlled CORS policy
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_CORS_ORIGINS or ["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 
 @app.exception_handler(EdgeStoreException)
 async def edge_store_exception_handler(request: Request, exc: EdgeStoreException):
-    logger.warning(f"Domain exception: {exc.message} (status: {exc.status_code})")
+    logger.warning(f"Domain exception on {request.method} {request.url.path}: {exc.message} (status: {exc.status_code})")
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": exc.__class__.__name__,
             "message": exc.message,
             "details": exc.details
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def universal_exception_handler(request: Request, exc: Exception):
+    # Log detailed traceback internally for diagnostics
+    logger.exception(f"Unhandled server exception on {request.method} {request.url.path}: {exc}")
+    # Return sanitized generic error externally to prevent information leakage
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "InternalServerError",
+            "message": "An internal server error occurred. Telemetry has been logged for administrative review."
         }
     )
 

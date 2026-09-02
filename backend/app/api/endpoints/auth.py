@@ -8,6 +8,7 @@ from backend.app.models.user import User
 from backend.app.models.session import UserSession
 from backend.app.schemas.auth import LoginRequest, TokenResponse, UserResponse, SessionResponse
 from backend.app.core.security import verify_password, create_access_token, decode_access_token
+from backend.app.core.rate_limiter import LoginBruteForceTracker
 from backend.app.core.dependencies import get_current_user, security
 from backend.app.services.audit_service import AuditService
 from backend.app.config import settings
@@ -17,11 +18,28 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/login", response_model=TokenResponse)
 def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == req.username).first()
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")[:250]
 
+    # Brute-force & credential stuffing defense
+    is_locked, remaining_seconds = LoginBruteForceTracker.check_lockout(client_ip, req.username)
+    if is_locked:
+        AuditService.log_event(
+            db, event_type="RATE_LIMIT_EXCEEDED",
+            description=f"Automated brute-force lockout active for '{req.username}' from {client_ip}. Retry in {remaining_seconds}s",
+            ip_address=client_ip,
+            severity="WARNING"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed login attempts. Temporarily locked for {remaining_seconds} seconds to prevent brute-force attacks.",
+            headers={"Retry-After": str(remaining_seconds)}
+        )
+
+    user = db.query(User).filter(User.username == req.username).first()
+
     if not user or not verify_password(req.password, user.hashed_password):
+        LoginBruteForceTracker.record_failed_attempt(client_ip, req.username)
         AuditService.log_event(
             db, event_type="LOGIN_FAILED",
             description=f"Failed login attempt for username '{req.username}' from {client_ip}",
@@ -80,6 +98,8 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
         jti=session_jti
     )
 
+    LoginBruteForceTracker.record_successful_login(client_ip, req.username)
+
     AuditService.log_event(
         db, event_type="LOGIN_SUCCESS",
         description=f"User '{user.username}' (role: {user.role}) logged in successfully from {client_ip}",
@@ -91,6 +111,30 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
         token_type="bearer",
         user=user.to_dict()
     )
+
+
+@router.get("/security-stats")
+def get_security_stats(current_user: User = Depends(get_current_user)):
+    """Return runtime security and defense telemetry for dashboard."""
+    return {
+        "brute_force_protection": LoginBruteForceTracker.get_stats(),
+        "password_policy": {
+            "min_length": 8,
+            "require_uppercase": True,
+            "require_lowercase": True,
+            "require_digit": True
+        },
+        "session_policy": {
+            "token_expire_minutes": settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+            "jti_binding": True,
+            "revocation_enabled": True
+        },
+        "network_security": {
+            "security_headers": settings.ENABLE_SECURITY_HEADERS,
+            "max_upload_mb": settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024),
+            "cors_restricted": True
+        }
+    }
 
 
 @router.get("/me", response_model=UserResponse)

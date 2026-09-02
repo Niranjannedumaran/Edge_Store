@@ -57,3 +57,15 @@ class FileNotFoundException(EdgeStoreException):
     """Raised when requested file cannot be found in database or disk."""
     def __init__(self, message: str = "File not found", details: dict = None):
         super().__init__(message, status_code=404, details=details)
+
+
+class ValidationException(EdgeStoreException):
+    """Raised when input validation fails (e.g., malformed filenames, illegal characters)."""
+    def __init__(self, message: str = "Input validation failed", details: dict = None):
+        super().__init__(message, status_code=400, details=details)
+
+
+class SecurityViolationException(EdgeStoreException):
+    """Raised when an explicit security violation is detected (e.g., path traversal, executable upload)."""
+    def __init__(self, message: str = "Security policy violation detected", details: dict = None):
+        super().__init__(message, status_code=400, details=details)

@@ -94,5 +94,19 @@ class Settings(BaseSettings):
     INITIAL_ADMIN_PASSWORD: str = "AdminEdgeStore2026!"
     INITIAL_ADMIN_EMAIL: str = "admin@edgestore.local"
 
+    # Cybersecurity Hardening Settings
+    RATE_LIMIT_LOGIN_MAX_ATTEMPTS: int = 5
+    RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 300  # 5 minute lockout window
+    RATE_LIMIT_DEFAULT_REQUESTS: int = 120  # requests per minute per IP
+    MAX_UPLOAD_SIZE_BYTES: int = 104857600  # 100 MB max request / file size
+    ALLOWED_CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
+    ]
+    ENABLE_SECURITY_HEADERS: bool = True
+    STRICT_TRANSPORT_SECURITY: bool = False  # Set True in production HTTPS deployment
+
 
 settings = Settings()
