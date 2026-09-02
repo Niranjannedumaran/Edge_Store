@@ -11,7 +11,7 @@ def test_login_success(client):
     data = res.json()
     assert "access_token" in data
     assert data["user"]["username"] == settings.INITIAL_ADMIN_USERNAME
-    assert data["user"]["role"] == "admin"
+    assert data["user"]["role"] in ("admin", "super_admin")
 
 
 def test_login_invalid_password(client):
@@ -28,14 +28,14 @@ def test_get_me(client, admin_token):
     assert res.status_code == 200
     data = res.json()
     assert data["username"] == settings.INITIAL_ADMIN_USERNAME
-    assert data["role"] == "admin"
+    assert data["role"] in ("admin", "super_admin")
 
 
 def test_rbac_admin_endpoint_forbidden_for_user(client, operator_token):
-    # Standard operator tries to call admin user list
+    # Standard operator tries to call admin user list without users.read
     res = client.get("/api/admin/users", headers={"Authorization": f"Bearer {operator_token}"})
     assert res.status_code == 403
-    assert "Administrative privileges required" in res.json()["detail"]
+    assert "users.read" in res.json()["detail"]
 
 
 def test_rbac_admin_endpoint_allowed_for_admin(client, admin_token):

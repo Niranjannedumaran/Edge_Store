@@ -8,7 +8,7 @@ from backend.app.schemas.simulation import (
     BatteryControlRequest,
     ReplicationFaultRequest
 )
-from backend.app.core.dependencies import require_admin
+from backend.app.core.dependencies import require_permission
 from backend.app.hal import hal
 from backend.app.config import settings, EnvironmentMode
 from backend.app.services.audit_service import AuditService
@@ -27,7 +27,7 @@ def verify_simulation_mode():
 @router.post("/drive")
 def control_simulated_drive(
     req: DriveControlRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("hardware.manage")),
     db: Session = Depends(get_db)
 ):
     verify_simulation_mode()
@@ -69,7 +69,7 @@ def control_simulated_drive(
 @router.post("/key-sd")
 def control_simulated_key_sd(
     req: KeyControlRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("hardware.manage")),
     db: Session = Depends(get_db)
 ):
     verify_simulation_mode()
@@ -100,7 +100,7 @@ def control_simulated_key_sd(
 @router.post("/battery")
 def control_simulated_battery(
     req: BatteryControlRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("hardware.manage")),
     db: Session = Depends(get_db)
 ):
     verify_simulation_mode()
@@ -120,7 +120,7 @@ def control_simulated_battery(
 @router.post("/replication-fault")
 def control_replication_fault(
     req: ReplicationFaultRequest,
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_permission("hardware.manage")),
     db: Session = Depends(get_db)
 ):
     verify_simulation_mode()

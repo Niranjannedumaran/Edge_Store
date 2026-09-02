@@ -2,20 +2,19 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Upload,
   Search,
-  Filter,
   Download,
   Trash2,
   ShieldCheck,
-  CheckCircle,
-  AlertTriangle,
   FileText,
   Copy,
   Check,
-  X,
-  RefreshCw
+  RefreshCw,
+  Edit2,
+  AlertTriangle
 } from "lucide-react";
 import { apiRequest } from "../api/client";
 import { useHardware } from "../context/HardwareContext";
+import { useAuth } from "../context/AuthContext";
 import { StatusBadge } from "../components/common/StatusBadge";
 
 export function FileManager() {
@@ -28,7 +27,16 @@ export function FileManager() {
   const [verifyData, setVerifyData] = useState(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [copiedHash, setCopiedHash] = useState(null);
+  const [renamingFile, setRenamingFile] = useState(null);
+  const [newFilename, setNewFilename] = useState("");
+
   const { health, refreshHealth } = useHardware();
+  const { hasPermission } = useAuth();
+
+  const canUpload = hasPermission("files.upload");
+  const canDelete = hasPermission("files.delete");
+  const canRename = hasPermission("files.rename");
+  const canDownload = hasPermission("files.download");
 
   const isVaultLocked = !health?.vault?.unlocked;
 
@@ -68,7 +76,7 @@ export function FileManager() {
 
     try {
       setUploadProgress(60);
-      const res = await apiRequest("/files/upload", {
+      await apiRequest("/files/upload", {
         method: "POST",
         body: formData,
       });
@@ -91,7 +99,7 @@ export function FileManager() {
       const isDegraded = res.headers.get("X-EdgeStore-Degraded-Fallback") === "true";
 
       if (isDegraded) {
-        alert(`Note: File was served from Drive B (Replica) because Primary storage is currently degraded.`);
+        alert("Note: File was served from Drive B (Replica) because Primary storage is currently degraded.");
       }
 
       const url = window.URL.createObjectURL(blob);
@@ -104,6 +112,23 @@ export function FileManager() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       alert(`Download Failed: ${err.message}`);
+    }
+  };
+
+  const handleRenameSubmit = async (e) => {
+    e.preventDefault();
+    if (!renamingFile || !newFilename.trim()) return;
+
+    try {
+      await apiRequest(`/files/${renamingFile.id}/rename`, {
+        method: "PUT",
+        body: { new_filename: newFilename.trim() }
+      });
+      setRenamingFile(null);
+      setNewFilename("");
+      await loadFiles();
+    } catch (err) {
+      alert(`Rename Failed: ${err.message}`);
     }
   };
 
@@ -177,39 +202,41 @@ export function FileManager() {
         </div>
       )}
 
-      {/* Upload Dropzone Header */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Encrypted File Ingestion</h3>
-            <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              Files uploaded are SHA-256 hashed, stored to Drive A, and replicated with integrity verification to Drive B.
-            </p>
-          </div>
-          <div>
-            <label
-              className={`btn btn-primary ${uploading || isVaultLocked ? "btn-disabled" : ""}`}
-              style={{ cursor: uploading || isVaultLocked ? "not-allowed" : "pointer" }}
-            >
-              <Upload size={16} />
-              <span>{uploading ? `Uploading (${uploadProgress}%)...` : "Upload File"}</span>
-              <input
-                type="file"
-                disabled={uploading || isVaultLocked}
-                onChange={handleFileUpload}
-                style={{ display: "none" }}
-              />
-            </label>
-          </div>
-        </div>
-        {uploading && (
-          <div style={{ marginTop: 12 }}>
-            <div className="progress-container">
-              <div className="progress-bar progress-info" style={{ width: `${uploadProgress}%` }} />
+      {/* Upload Dropzone Header (Conditional on files.upload) */}
+      {canUpload && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Encrypted File Ingestion</h3>
+              <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                Files uploaded are SHA-256 hashed, stored to Drive A, and replicated with integrity verification to Drive B.
+              </p>
+            </div>
+            <div>
+              <label
+                className={`btn btn-primary ${uploading || isVaultLocked ? "btn-disabled" : ""}`}
+                style={{ cursor: uploading || isVaultLocked ? "not-allowed" : "pointer" }}
+              >
+                <Upload size={16} />
+                <span>{uploading ? `Uploading (${uploadProgress}%)...` : "Upload File"}</span>
+                <input
+                  type="file"
+                  disabled={uploading || isVaultLocked}
+                  onChange={handleFileUpload}
+                  style={{ display: "none" }}
+                />
+              </label>
             </div>
           </div>
-        )}
-      </div>
+          {uploading && (
+            <div style={{ marginTop: 12 }}>
+              <div className="progress-container">
+                <div className="progress-bar progress-info" style={{ width: `${uploadProgress}%` }} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
@@ -313,20 +340,39 @@ export function FileManager() {
                       >
                         <ShieldCheck size={13} />
                       </button>
-                      <button
-                        onClick={() => handleDownload(file)}
-                        className="btn btn-secondary btn-sm"
-                        title="Download file"
-                      >
-                        <Download size={13} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(file)}
-                        className="btn btn-danger btn-sm"
-                        title="Delete file"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+
+                      {canRename && (
+                        <button
+                          onClick={() => {
+                            setRenamingFile(file);
+                            setNewFilename(file.filename);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          title="Rename file"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      )}
+
+                      {canDownload && (
+                        <button
+                          onClick={() => handleDownload(file)}
+                          className="btn btn-secondary btn-sm"
+                          title="Download file"
+                        >
+                          <Download size={13} />
+                        </button>
+                      )}
+
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(file)}
+                          className="btn btn-danger btn-sm"
+                          title="Delete file"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -335,6 +381,38 @@ export function FileManager() {
           </tbody>
         </table>
       </div>
+
+      {/* Rename Dialog */}
+      {renamingFile && (
+        <div className="modal-overlay" onClick={() => setRenamingFile(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 450 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Rename File</h3>
+            <form onSubmit={handleRenameSubmit}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>
+                  New Filename:
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={newFilename}
+                  onChange={(e) => setNewFilename(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRenamingFile(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* SHA-256 Cross-Drive Verification Modal */}
       {(verifyLoading || verifyData) && (
@@ -348,52 +426,37 @@ export function FileManager() {
               <button
                 onClick={() => setVerifyData(null)}
                 className="btn btn-secondary btn-sm"
-                style={{ padding: 4 }}
+                style={{ padding: "4px 8px" }}
               >
-                <X size={14} />
+                Close
               </button>
             </div>
 
             {verifyLoading ? (
               <div style={{ padding: 30, textAlign: "center", color: "var(--text-muted)" }}>
-                Auditing SHA-256 checksums across primary and replica drives...
+                Auditing drive checksums...
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <div style={{ padding: 10, background: "var(--bg-surface-raised)", borderRadius: "var(--radius-md)" }}>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>File Target</div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{verifyData.filename}</div>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-dim)", wordBreak: "break-all", marginTop: 4 }}>
-                    Database Expected: {verifyData.expected_hash}
-                  </div>
+              <div>
+                <div style={{ marginBottom: 14, fontSize: 13 }}>
+                  <strong>File:</strong> {verifyData.filename}
                 </div>
-
-                {/* Primary Check */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)" }}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>Drive A (Primary)</div>
-                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-dim)" }}>
-                      {verifyData.primary.available ? verifyData.primary.hash?.substring(0, 20) + "..." : "Drive offline"}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div className="card" style={{ padding: 12, background: "var(--surface-sunken)" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Drive A (Primary)</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                      <code style={{ fontSize: 11 }}>{verifyData.primary.hash || "Not Found"}</code>
+                      <StatusBadge status={verifyData.primary.intact ? "HEALTHY" : "FAILED"} />
                     </div>
                   </div>
-                  <StatusBadge status={verifyData.primary.intact ? "healthy" : "critical"} label={verifyData.primary.intact ? "INTACT" : "FAILED / OFFLINE"} />
-                </div>
 
-                {/* Replica Check */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)" }}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>Drive B (Replica)</div>
-                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-dim)" }}>
-                      {verifyData.replica.available ? verifyData.replica.hash?.substring(0, 20) + "..." : "Drive offline"}
+                  <div className="card" style={{ padding: 12, background: "var(--surface-sunken)" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Drive B (Replica)</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                      <code style={{ fontSize: 11 }}>{verifyData.replica.hash || "Not Found"}</code>
+                      <StatusBadge status={verifyData.replica.intact ? "HEALTHY" : "FAILED"} />
                     </div>
                   </div>
-                  <StatusBadge status={verifyData.replica.intact ? "healthy" : "critical"} label={verifyData.replica.intact ? "INTACT" : "FAILED / OFFLINE"} />
-                </div>
-
-                <div style={{ textAlign: "right", marginTop: 8 }}>
-                  <button onClick={() => setVerifyData(null)} className="btn btn-secondary">
-                    Close Audit
-                  </button>
                 </div>
               </div>
             )}

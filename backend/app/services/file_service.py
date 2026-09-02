@@ -100,8 +100,8 @@ class FileService:
         if not file_record:
             raise FileNotFoundException(f"File {file_id} not found")
 
-        # RBAC: users can only see their own files unless admin
-        if current_user.role != UserRole.ADMIN.value and file_record.owner_id != current_user.id:
+        # RBAC: users with files.read permission can access file
+        if not current_user.has_permission("files.read") and file_record.owner_id != current_user.id:
             raise AuthorizationException("Access denied to requested file")
 
         return file_record
@@ -143,6 +143,28 @@ class FileService:
         )
 
         return data, stored_file, is_degraded_fallback
+
+    @staticmethod
+    def rename_file(db: Session, file_id: str, new_filename: str, current_user: User) -> Dict[str, Any]:
+        """Rename an existing file metadata record."""
+        stored_file = FileService.get_file(db, file_id, current_user)
+        safe_new_name = FileService.sanitize_filename(new_filename)
+        old_name = stored_file.filename
+
+        stored_file.filename = safe_new_name
+        db.commit()
+
+        AuditService.log_event(
+            db, event_type="FILE_RENAME",
+            description=f"User '{current_user.username}' renamed file '{old_name}' to '{safe_new_name}'",
+            user_id=current_user.id, username=current_user.username, severity="INFO"
+        )
+
+        return {
+            "success": True,
+            "message": f"File renamed to {safe_new_name}",
+            "file": stored_file.to_dict()
+        }
 
     @staticmethod
     def delete_file(db: Session, file_id: str, current_user: User) -> Dict[str, Any]:
@@ -242,7 +264,10 @@ class FileService:
         replica_status: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         query = db.query(StoredFile)
-        if current_user.role != UserRole.ADMIN.value:
+
+        # Allow full list for users with files.read
+        # If user is standard operator without broad read, scope to their own files
+        if not current_user.has_permission("files.read") and current_user.role not in ("super_admin", "admin"):
             query = query.filter(StoredFile.owner_id == current_user.id)
 
         if search:

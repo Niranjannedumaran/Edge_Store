@@ -1,11 +1,11 @@
 import io
 from typing import Optional, List
-from fastapi import APIRouter, Depends, UploadFile, File, Query, Response, status
+from fastapi import APIRouter, Depends, UploadFile, File, Query, Response, status, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from backend.app.db.database import get_db
 from backend.app.models.user import User
-from backend.app.core.dependencies import get_current_user, require_vault_unlocked
+from backend.app.core.dependencies import get_current_user, require_permission, require_vault_unlocked
 from backend.app.services.file_service import FileService
 
 router = APIRouter(prefix="/files", tags=["Files"])
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/files", tags=["Files"])
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_file(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("files.upload")),
     _vault: None = Depends(require_vault_unlocked),
     db: Session = Depends(get_db)
 ):
@@ -33,7 +33,7 @@ async def upload_file(
 def list_files(
     search: Optional[str] = Query(None, description="Search by filename"),
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by replica status"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("files.read")),
     db: Session = Depends(get_db)
 ):
     return FileService.list_files(db=db, current_user=current_user, search=search, replica_status=status_filter)
@@ -42,7 +42,7 @@ def list_files(
 @router.get("/{file_id}")
 def get_file_details(
     file_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("files.read")),
     db: Session = Depends(get_db)
 ):
     file_record = FileService.get_file(db, file_id, current_user)
@@ -52,7 +52,7 @@ def get_file_details(
 @router.get("/{file_id}/download")
 def download_file(
     file_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("files.download")),
     _vault: None = Depends(require_vault_unlocked),
     db: Session = Depends(get_db)
 ):
@@ -71,10 +71,20 @@ def download_file(
     )
 
 
+@router.put("/{file_id}/rename")
+def rename_file(
+    file_id: str,
+    new_filename: str = Body(..., embed=True),
+    current_user: User = Depends(require_permission("files.rename")),
+    db: Session = Depends(get_db)
+):
+    return FileService.rename_file(db, file_id, new_filename, current_user)
+
+
 @router.delete("/{file_id}")
 def delete_file(
     file_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("files.delete")),
     _vault: None = Depends(require_vault_unlocked),
     db: Session = Depends(get_db)
 ):
@@ -84,7 +94,7 @@ def delete_file(
 @router.get("/{file_id}/verify")
 def verify_file_integrity(
     file_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("files.read")),
     db: Session = Depends(get_db)
 ):
     return FileService.verify_file_integrity(db, file_id, current_user)

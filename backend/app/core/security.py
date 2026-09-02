@@ -23,18 +23,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-    """Generate a signed JWT access token."""
+import uuid
+
+def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None, jti: Optional[str] = None) -> str:
+    """Generate a signed JWT access token with unique JTI session identifier."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
+    token_jti = jti or str(uuid.uuid4())
     to_encode.update({
         "exp": expire,
         "iat": datetime.now(timezone.utc),
-        "iss": "edgestore-auth-v1"
+        "iss": "edgestore-auth-v1",
+        "jti": token_jti
     })
 
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)

@@ -24,12 +24,17 @@ EdgeStore enforces a strict **Defense-in-Depth** model designed for physical edg
 ### Layer 3: Transport Security (TLS)
 - All client-to-appliance traffic is encrypted using TLS 1.3 / HTTPS.
 
-### Layer 4: Role-Based Access Control (RBAC) & JWT
+### Layer 4: Enterprise Role-Based Access Control (RBAC) & Sessions
 - Salted `bcrypt` password hashing (cost factor 12).
-- Signed JWT access tokens (HS256) with strict expiration.
-- Roles:
-  - `USER`: Upload, download, verify, and delete owned files.
-  - `ADMIN`: User provisioning, hardware telemetry, fault controls, audit logs, vault lock/unlock, semi-automated rebuilds.
+- Signed JWT access tokens with unique `jti` session binding.
+- Session revocation: Administrators can immediately revoke active tokens by setting `is_revoked=True` in the database.
+- Temporary Guest accounts: Automatic expiration enforcement where expired accounts immediately receive `HTTP 401 Unauthorized`.
+- **5 Standard Roles**:
+  1. **Super Admin**: Full appliance control (Storage, replication, users, roles matrix, security, sessions, power).
+  2. **Storage Admin**: Storage volumes, replication engine, semi-automated rebuilds, file operations, hardware health.
+  3. **Security Admin**: User provisioning, role & permission matrix, access policies, session revocation, security audits.
+  4. **File Manager**: Upload, preview, download, rename, and delete files.
+  5. **Guest / Viewer**: Strictly read-only file list and preview. Uploads, modifications, deletions, and administrative endpoints are rejected with `HTTP 403 Forbidden`.
 
 ### Layer 5: Data Integrity (SHA-256)
 - Checksum computed during initial binary upload.
@@ -43,7 +48,25 @@ EdgeStore enforces a strict **Defense-in-Depth** model designed for physical edg
 
 ---
 
-## 2. Security Hygiene Rules
+## 2. Granular Permissions (35 Capabilities)
+
+| Subsystem | Capabilities |
+|---|---|
+| **Files** | `files.read`, `files.preview`, `files.download`, `files.upload`, `files.modify`, `files.rename`, `files.delete`, `files.move`, `files.share` |
+| **Users** | `users.read`, `users.create`, `users.update`, `users.disable`, `users.delete`, `users.reset_password`, `users.revoke_sessions` |
+| **Roles** | `roles.read`, `roles.create`, `roles.update`, `roles.delete`, `roles.assign` |
+| **Storage** | `storage.read`, `storage.manage` |
+| **Replication** | `replication.read`, `replication.manage`, `replication.rebuild` |
+| **Security** | `security.read`, `security.manage` |
+| **Audit** | `audit.read` |
+| **System** | `system.read`, `system.manage` |
+| **Hardware** | `hardware.read`, `hardware.manage` |
+| **Power** | `power.read`, `power.manage` |
+
+---
+
+## 3. Security Hygiene Rules
 - Passwords, JWT secrets, and raw LUKS key material are **NEVER logged**.
 - Structured logger automatically redacts sensitive keywords (`password`, `token`, `secret`, `luks_key`).
 - Path traversal protection strictly validates relative paths against volume roots.
+- All protected endpoints enforce authorization on the backend; frontend visibility toggles are strictly for UX.

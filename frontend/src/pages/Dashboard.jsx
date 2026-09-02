@@ -15,11 +15,27 @@ import {
   ArrowRight
 } from "lucide-react";
 import { useHardware } from "../context/HardwareContext";
+import { useAuth } from "../context/AuthContext";
 import { MetricCard, ProgressBar } from "../components/common/MetricCard";
 import { StatusBadge } from "../components/common/StatusBadge";
+import { DashboardStorageAdmin } from "./DashboardStorageAdmin";
+import { DashboardSecurityAdmin } from "./DashboardSecurityAdmin";
+import { DashboardFileManager } from "./DashboardFileManager";
 
 export function Dashboard({ onNavigate }) {
+  const { user } = useAuth();
   const { health, loading } = useHardware();
+
+  // Role-specific dashboard routing
+  if (user?.role === "storage_admin") {
+    return <DashboardStorageAdmin onNavigate={onNavigate} />;
+  }
+  if (user?.role === "security_admin") {
+    return <DashboardSecurityAdmin onNavigate={onNavigate} />;
+  }
+  if (user?.role === "file_manager") {
+    return <DashboardFileManager onNavigate={onNavigate} />;
+  }
 
   if (loading && !health) {
     return (

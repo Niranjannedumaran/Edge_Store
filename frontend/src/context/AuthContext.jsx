@@ -15,21 +15,21 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem("edgestore_token"));
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const checkMe = async () => {
-      if (token) {
-        try {
-          const profile = await apiRequest("/auth/me");
-          setUser(profile);
-          localStorage.setItem("edgestore_user", JSON.stringify(profile));
-        } catch {
-          logout();
-        }
+  const fetchProfile = async () => {
+    if (token) {
+      try {
+        const profile = await apiRequest("/auth/me");
+        setUser(profile);
+        localStorage.setItem("edgestore_user", JSON.stringify(profile));
+      } catch {
+        logout();
       }
-      setLoading(false);
-    };
+    }
+    setLoading(false);
+  };
 
-    checkMe();
+  useEffect(() => {
+    fetchProfile();
 
     const handleUnauthorized = () => {
       logout();
@@ -60,8 +60,35 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const hasPermission = (permCode) => {
+    if (!user) return false;
+    if (user.role === "super_admin" || user.role === "admin") return true;
+    return user.permissions ? user.permissions.includes(permCode) : false;
+  };
+
+  const isSuperAdmin = user?.role === "super_admin" || user?.role === "admin";
+  const isStorageAdmin = user?.role === "storage_admin";
+  const isSecurityAdmin = user?.role === "security_admin";
+  const isFileManager = user?.role === "file_manager";
+  const isGuest = user?.role === "guest";
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, isAdmin: user?.role === "admin" }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        login,
+        logout,
+        loading,
+        hasPermission,
+        isSuperAdmin,
+        isStorageAdmin,
+        isSecurityAdmin,
+        isFileManager,
+        isGuest,
+        refreshProfile: fetchProfile
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
