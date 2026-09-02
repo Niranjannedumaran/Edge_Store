@@ -18,10 +18,12 @@ import { RolesPermissionsView } from "./pages/RolesPermissionsView";
 import { SessionsView } from "./pages/SessionsView";
 import { ProfileView } from "./pages/ProfileView";
 import { GuestView } from "./pages/GuestView";
+import { HeroLanding } from "./pages/HeroLanding";
 
 function MainApp() {
   const { user, loading, isGuest, hasPermission } = useAuth();
   const [currentTab, setCurrentTab] = useState("dashboard");
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     if (isGuest) {
@@ -39,7 +41,9 @@ function MainApp() {
           alignItems: "center",
           justifyContent: "center",
           height: "100vh",
-          color: "var(--text-muted)",
+          backgroundColor: "#020204",
+          color: "#94a3b8",
+          fontFamily: "'Inter', sans-serif",
         }}
       >
         Initializing EdgeStore Appliance...
@@ -48,7 +52,10 @@ function MainApp() {
   }
 
   if (!user) {
-    return <Login />;
+    if (showLogin) {
+      return <Login onBackToLanding={() => setShowLogin(false)} />;
+    }
+    return <HeroLanding onGetStarted={() => setShowLogin(true)} />;
   }
 
   const renderContent = () => {

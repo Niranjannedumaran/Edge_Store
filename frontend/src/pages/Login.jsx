@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import {
   Shield,
   Quote,
@@ -8,6 +7,7 @@ import {
   EyeOff,
   Check,
   ArrowRight,
+  ArrowLeft,
   HardDrive,
   Key,
   AlertTriangle,
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
-export function Login() {
+export function Login({ onBackToLanding }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("AdminEdgeStore2026!");
   const [showPassword, setShowPassword] = useState(false);
@@ -274,6 +274,31 @@ export function Login() {
               EDGESTORE
             </span>
           </div>
+
+          {/* Back to Overview Link */}
+          {onBackToLanding && (
+            <button
+              type="button"
+              onClick={onBackToLanding}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "none",
+                border: "none",
+                color: "#71717a",
+                fontSize: 12,
+                cursor: "pointer",
+                padding: "0 0 16px 0",
+                transition: "color 0.15s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#71717a")}
+            >
+              <ArrowLeft size={14} />
+              <span>Back to Overview</span>
+            </button>
+          )}
 
           {/* Form Header */}
           <div style={{ marginBottom: 28 }}>

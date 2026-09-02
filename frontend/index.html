@@ -3,11 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EdgeStore — Secure Edge Storage Appliance</title>
-    <meta name="description" content="EdgeStore Hardware-Ready Appliance Console: Physical Key-SD Authentication, LUKS2 Disk Encryption, Dual-Drive Replication, and SHA-256 Integrity Verification." />
+    <title>EdgeStore — Hardware-Bound Edge Storage Appliance</title>
+    <meta name="description" content="EdgeStore Hardware-Ready Appliance: Physical Key-SD Authentication, LUKS2 Disk Encryption, Dual-Drive Replication, and SHA-256 Integrity Verification." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              adrino: '#020204',
+            },
+            fontFamily: {
+              serif: ['Newsreader', 'Georgia', 'serif'],
+              mono: ['"JetBrains Mono"', 'monospace'],
+              sans: ['Inter', '-apple-system', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
