@@ -1,10 +1,9 @@
-import React from "react";
-import { Sun, Moon, Battery, BatteryCharging, ShieldAlert, Cpu, RefreshCw } from "lucide-react";
+import { Sun, Moon, Battery, BatteryCharging, ShieldAlert, Cpu, RefreshCw, Globe } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useHardware } from "../../context/HardwareContext";
 import { StatusBadge } from "../common/StatusBadge";
 
-export function TopBar({ currentTab }) {
+export function TopBar({ currentTab, setCurrentTab }) {
   const { theme, toggleTheme } = useTheme();
   const { health, refreshHealth, loading } = useHardware();
 
@@ -91,6 +90,19 @@ export function TopBar({ currentTab }) {
         >
           <RefreshCw size={13} className={loading ? "spin" : ""} />
         </button>
+
+        {/* Intro Page Button */}
+        {setCurrentTab && (
+          <button
+            onClick={() => setCurrentTab("hero")}
+            className="btn btn-secondary btn-sm"
+            title="View Public Introduction Page (Adrino Labs)"
+            style={{ padding: "5px 10px", fontSize: 11, display: "flex", alignItems: "center", gap: 5 }}
+          >
+            <Globe size={13} style={{ color: "#a855f7" }} />
+            <span>Intro Page</span>
+          </button>
+        )}
 
         {/* Theme Switcher */}
         <button

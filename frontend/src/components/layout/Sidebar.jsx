@@ -13,7 +13,8 @@ import {
   User,
   LogOut,
   Shield,
-  Server
+  Server,
+  Globe
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useHardware } from "../../context/HardwareContext";
@@ -38,6 +39,7 @@ export function Sidebar({ currentTab, setCurrentTab }) {
       return [
         { id: "guest_files", label: "Authorized Files", icon: FolderLock },
         { id: "profile", label: "My Profile", icon: User },
+        { id: "hero", label: "Appliance Intro", icon: Globe },
       ];
     }
 
@@ -46,6 +48,7 @@ export function Sidebar({ currentTab, setCurrentTab }) {
         { id: "dashboard", label: "Overview", icon: LayoutDashboard },
         { id: "files", label: "File Vault", icon: FolderLock },
         { id: "profile", label: "My Profile", icon: User },
+        { id: "hero", label: "Appliance Intro", icon: Globe },
       ];
     }
 
@@ -58,6 +61,7 @@ export function Sidebar({ currentTab, setCurrentTab }) {
         { id: "system", label: "System Health", icon: Activity },
         { id: "admin", label: "Audit Logs", icon: History },
         { id: "profile", label: "My Profile", icon: User },
+        { id: "hero", label: "Appliance Intro", icon: Globe },
       ];
     }
 
@@ -69,6 +73,7 @@ export function Sidebar({ currentTab, setCurrentTab }) {
         { id: "security", label: "Security & Key-SD", icon: ShieldCheck },
         { id: "sessions", label: "Active Sessions", icon: Laptop },
         { id: "profile", label: "My Profile", icon: User },
+        { id: "hero", label: "Appliance Intro", icon: Globe },
       ];
     }
 
@@ -84,6 +89,7 @@ export function Sidebar({ currentTab, setCurrentTab }) {
       { id: "sessions", label: "Active Sessions", icon: Laptop },
       { id: "system", label: "System & Power", icon: Activity },
       { id: "profile", label: "My Profile", icon: User },
+      { id: "hero", label: "Appliance Intro", icon: Globe },
     ];
   };
 

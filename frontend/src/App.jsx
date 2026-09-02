@@ -82,6 +82,8 @@ function MainApp() {
         return <SessionsView />;
       case "profile":
         return <ProfileView />;
+      case "hero":
+        return <HeroLanding user={user} onGetStarted={() => setCurrentTab("dashboard")} />;
       default:
         return isGuest ? <GuestView /> : <Dashboard onNavigate={(tab) => setCurrentTab(tab)} />;
     }
@@ -93,7 +95,7 @@ function MainApp() {
     <div className="app-shell">
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} />
       <div className="app-main">
-        <TopBar currentTab={currentTab} />
+        <TopBar currentTab={currentTab} setCurrentTab={setCurrentTab} />
         <main className="app-content">{renderContent()}</main>
       </div>
       {showSimulationDrawer && <SimulationDrawer />}
