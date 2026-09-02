@@ -585,6 +585,15 @@ button, input, select, textarea {
 }
 
 /* Responsive adjustments */
+@media (max-width: 1024px) {
+  .login-left-panel {
+    display: none !important;
+  }
+  .login-mobile-header {
+    display: flex !important;
+  }
+}
+
 @media (max-width: 900px) {
   .app-sidebar {
     width: 68px;

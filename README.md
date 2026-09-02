@@ -65,10 +65,11 @@ npm run dev
 Open `http://127.0.0.1:5173/` in your browser.
 
 ### 4. Default Credentials
-| Account | Username | Password | Role |
-|---|---|---|---|
-| **System Administrator** | `admin` | `AdminEdgeStore2026!` | Admin |
-| **Standard Operator** | `operator` | `OperatorEdgeStore2026!` | User |
+| Account | Username | Password | Assigned Role | Capabilities |
+|---|---|---|---|---|
+| **System Administrator** | `admin` | `AdminEdgeStore2026!` | `super_admin` | Full appliance administration (All 35 permissions) |
+| **Storage Operator** | `operator` | `OperatorEdgeStore2026!` | `storage_admin` | Drive management, replication, semi-automated rebuilds |
+| **Guest / Reviewer** | `guest` | `GuestEdgeStore2026!` | `guest` | Strictly read-only file list & preview (Zero write/delete) |
 
 ---
 
