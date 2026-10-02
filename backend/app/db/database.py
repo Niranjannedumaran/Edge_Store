@@ -3,6 +3,14 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from backend.app.config import settings
 from backend.app.core.logger import logger
 
+from pathlib import Path
+
+# Ensure SQLite storage directory exists before establishing connection
+if "sqlite" in settings.DATABASE_URL:
+    db_raw = settings.DATABASE_URL.replace("sqlite:////", "/").replace("sqlite:///", "")
+    if db_raw and not db_raw.startswith(":memory:"):
+        Path(db_raw).parent.mkdir(parents=True, exist_ok=True)
+
 # SQLite connection with connect_args for multithreading
 connect_args = {"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
 

@@ -27,9 +27,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             )
             headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline'; "
-                "style-src 'self' 'unsafe-inline'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com data:; "
                 "img-src 'self' data: blob:; "
+                "frame-src 'self' blob:; "
+                "object-src 'self' blob:; "
                 "connect-src 'self'; "
                 "frame-ancestors 'none';"
             )
@@ -67,3 +70,55 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                 pass
 
         return await call_next(request)
+
+
+class AntiBotDDoSShieldMiddleware(BaseHTTPMiddleware):
+    """
+    DDoS & Anti-Bot Shield Middleware.
+    Screens incoming requests against active IP quarantine cache and sliding-window burst limits.
+    Immediately drops DDoS attack floods with HTTP 429 before application, database, or disk load occurs.
+    """
+
+    EXEMPT_PATHS = (
+        "/health",
+        "/api/health",
+        "/api/security/anti-bot",
+        "/favicon.ico",
+        "/assets",
+        "/docs",
+        "/openapi.json",
+        "/redoc"
+    )
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        path = request.url.path
+        if any(path.startswith(exempt) for exempt in self.EXEMPT_PATHS):
+            return await call_next(request)
+
+        # Allow test client or resolve IP
+        client_ip = request.client.host if request.client else "127.0.0.1"
+        bot_token = request.headers.get("x-anti-bot-token")
+
+        from backend.app.core.anti_bot import AntiBotDDoSShield
+        is_allowed, reason, retry_after = AntiBotDDoSShield.screen_request(client_ip, bot_token)
+        if not is_allowed:
+            return JSONResponse(
+                status_code=429,
+                headers={"Retry-After": str(retry_after)},
+                content={
+                    "error": "DDoSAttackMitigation",
+                    "message": "Traffic flood or automated bot activity detected. Your IP is temporarily quarantined.",
+                    "details": {
+                        "reason": reason,
+                        "retry_after_seconds": retry_after,
+                        "client_ip": client_ip,
+                        "anti_bot_verification_url": "/api/security/anti-bot/challenge"
+                    }
+                }
+            )
+
+        return await call_next(request)
+

@@ -5,6 +5,7 @@ from backend.app.models.user import User, UserRole
 from backend.app.models.role import Role, Permission, role_permissions
 from backend.app.models.session import UserSession
 from backend.app.models.audit import AuditEvent
+from backend.app.models.share import FileShare
 from backend.app.core.security import hash_password
 from backend.app.config import settings
 from backend.app.core.logger import logger

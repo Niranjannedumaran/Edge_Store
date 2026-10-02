@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Callable, Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -74,6 +74,19 @@ def get_current_user(
             db.commit()
 
     return user
+
+
+def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Retrieve current user if Bearer token is provided, or None for public client operations."""
+    if not credentials:
+        return None
+    try:
+        return get_current_user(credentials, db)
+    except HTTPException:
+        return None
 
 
 def require_permission(permission_code: str) -> Callable:

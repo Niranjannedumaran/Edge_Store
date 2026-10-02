@@ -1,31 +1,43 @@
 # EdgeStore Database & Metadata Architecture
 
-EdgeStore Phase 1 utilizes **SQLite** for metadata, file indexing, and audit records. File payloads and encryption key material are **NEVER stored in SQLite**.
+EdgeStore utilizes a dual-engine database architecture:
+1. **SQLite (Relational Core)**: File metadata, RBAC matrices, authentication sessions, and append-only audit trail.
+2. **MongoDB (Document Store)**: High-performance, scalable storage for client organization details, customer accounts, and custom metadata attributes.
 
 ---
 
 ## 1. Design Principles
 
-- **File Contents on Encrypted Filesystem**: Only metadata (ID, owner, filename, size, SHA-256 hash, storage path, replica status) is recorded in SQLite.
-- **Zero Plaintext Secrets**: Cryptographic key material is restricted to the physical Key-SD device and dm-crypt kernel memory. Passwords use salted bcrypt hashes.
-- **Foreign Key Constraints & WAL Mode**:
+- **Separation of Concerns**: File payloads are stored on encrypted dual volumes (`/data/primary` and `/data/replica`). Relational metadata resides in SQLite. Client organizational details reside in MongoDB.
+- **Zero Plaintext Secrets**: Cryptographic key material is restricted to dm-crypt kernel memory / Key-SD. Passwords use salted bcrypt hashes.
+- **SQLite Optimization**:
   - `PRAGMA foreign_keys = ON`: Strict referential integrity.
   - `PRAGMA journal_mode = WAL`: Concurrency for simultaneous telemetry readers and write transactions.
   - `PRAGMA synchronous = NORMAL`: Balances performance with power resilience.
+- **MongoDB Indexing**:
+  - Unique index on `email` to prevent collision.
+  - Compound text search index on `name`, `company`, and `address`.
+  - Timestamp index on `created_at`.
 
 ---
 
-## 2. Entity Schemas
+## 2. SQLite Schemas
 
 ### `users`
 - `id` (INTEGER PK AUTOINCREMENT)
 - `username` (VARCHAR(64) UNIQUE)
 - `email` (VARCHAR(128) UNIQUE)
 - `hashed_password` (VARCHAR(256))
-- `role` (VARCHAR(16)): `admin` or `user`
+- `role` (VARCHAR(32)): `super_admin`, `storage_admin`, `file_manager`, `auditor`, `secops`, `guest`
 - `is_active` (BOOLEAN)
 - `created_at` (DATETIME)
 - `last_login_at` (DATETIME)
+
+### `roles` & `permissions`
+- Standard RBAC table with `role_permissions` join table enforcing granular permission codes (`files.read`, `files.upload`, `storage.manage`, etc.).
+
+### `user_sessions`
+- Tracks active JWT tokens (`token_jti`), IP addresses, user-agent, creation, and last activity timestamps for immediate session revocation.
 
 ### `files`
 - `id` (VARCHAR(36) PK UUID)
@@ -41,11 +53,36 @@ EdgeStore Phase 1 utilizes **SQLite** for metadata, file indexing, and audit rec
 - `last_verified_at` (DATETIME)
 
 ### `audit_events`
-- `id` (INTEGER PK AUTOINCREMENT)
-- `timestamp` (DATETIME INDEX)
-- `event_type` (VARCHAR(64) INDEX)
-- `user_id` (INTEGER FK `users.id`)
-- `username` (VARCHAR(64))
-- `ip_address` (VARCHAR(45))
-- `description` (TEXT)
-- `severity` (VARCHAR(16)): `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+- Append-only security audit log recording every login, upload, replication, client mutation, and administrative action.
+
+---
+
+## 3. MongoDB Document Schema (`edgestore_clients`)
+
+Managed asynchronously via **Motor** and **PyMongo**:
+
+### Collection: `clients`
+
+```json
+{
+  "_id": ObjectId("6aa541b82ebb832ffbf1dd12"),
+  "name": "Acme Innovations",
+  "email": "contact@acme.com",
+  "phone": "+1-800-555-0199",
+  "company": "Acme Global",
+  "address": "100 Enterprise Way, Suite 300",
+  "notes": "Enterprise tier storage client",
+  "metadata": {
+    "tier": "enterprise",
+    "contract_id": "CNT-2026-992"
+  },
+  "created_at": ISODate("2026-09-12T12:12:40.123Z"),
+  "updated_at": ISODate("2026-09-12T12:12:40.123Z"),
+  "created_by": "client_frontend"
+}
+```
+
+### Collection Indices:
+- `idx_client_email_unique`: `{ "email": 1 }` (unique constraint)
+- `idx_client_text_search`: `{ "name": "text", "company": "text", "address": "text" }`
+- `idx_client_created_at`: `{ "created_at": -1 }`

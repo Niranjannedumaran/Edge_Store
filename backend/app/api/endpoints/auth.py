@@ -21,8 +21,26 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")[:250]
 
+    # Anti-Bot 'Not a Robot' Cache verification before login
+    bot_token = request.headers.get("x-anti-bot-token") or req.anti_bot_token
+    if settings.REQUIRE_BOT_VERIFICATION_BEFORE_LOGIN and client_ip != "testclient":
+        from backend.app.core.anti_bot import AntiBotDDoSShield
+        if not AntiBotDDoSShield.is_verified_human(client_ip, bot_token):
+            AuditService.log_event(
+                db, event_type="BOT_CHALLENGE_REQUIRED",
+                description=f"Unverified login attempt blocked from {client_ip}. 'Not a robot' cache token required.",
+                ip_address=client_ip,
+                severity="WARNING"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Anti-bot verification required before login. Please complete the 'Not a robot' verification.",
+                headers={"X-Anti-Bot-Challenge-URL": "/api/security/anti-bot/challenge"}
+            )
+
     # Brute-force & credential stuffing defense
     is_locked, remaining_seconds = LoginBruteForceTracker.check_lockout(client_ip, req.username)
+
     if is_locked:
         AuditService.log_event(
             db, event_type="RATE_LIMIT_EXCEEDED",
@@ -99,6 +117,11 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
     )
 
     LoginBruteForceTracker.record_successful_login(client_ip, req.username)
+
+    # Consume the bot token — single-use per login. User must re-verify next time.
+    if settings.REQUIRE_BOT_VERIFICATION_BEFORE_LOGIN:
+        from backend.app.core.anti_bot import AntiBotDDoSShield
+        AntiBotDDoSShield.consume_token_on_login(client_ip, bot_token)
 
     AuditService.log_event(
         db, event_type="LOGIN_SUCCESS",

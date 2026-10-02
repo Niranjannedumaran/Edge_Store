@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from backend.app.api.endpoints import auth, files, storage, replication, system, admin, simulation
+from backend.app.api.endpoints import auth, files, storage, replication, system, admin, simulation, clients, security_shield
 
 api_router = APIRouter(prefix="/api")
 
@@ -10,3 +10,6 @@ api_router.include_router(replication.router)
 api_router.include_router(system.router)
 api_router.include_router(admin.router)
 api_router.include_router(simulation.router)
+api_router.include_router(clients.router)
+api_router.include_router(security_shield.router, prefix="/security", tags=["Security Shield"])
+

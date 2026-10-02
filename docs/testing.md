@@ -1,18 +1,24 @@
 # EdgeStore Automated Testing Guide
 
-Testing is mandatory for all EdgeStore subsystems. Features are not considered operational based on visual inspection alone; every state transition and failure mode is covered by automated unit and integration tests.
+Testing is mandatory across all EdgeStore subsystems. Features are not considered operational based on visual inspection alone; every state transition, access permission, and failure mode is covered by automated regression and unit test suites.
 
 ---
 
-## 1. Test Suite Overview
+## 1. Test Suite Overview (57 Automated Tests)
 
-| Test Module | Coverage |
-|---|---|
-| `backend/tests/test_auth.py` | Admin login, operator login, invalid password rejection, JWT token decoding, RBAC privilege enforcement |
-| `backend/tests/test_hal_simulation.py` | StorageProvider CRUD, KeyDeviceProvider insertion/removal, EncryptionProvider vault unlock/lock, PowerProvider threshold shifts |
-| `backend/tests/test_file_operations.py` | Multi-part upload, SHA-256 generation, synchronous replication to Drive B, download with checksum header, clean deletion |
-| `backend/tests/test_fault_injection.py` | Drive A simulated failure, failover read routing to Drive B with degraded indicator, Key-SD removal causing HTTP 423 Locked |
-| `backend/tests/test_security.py` | Path traversal protection (`../../`), on-disk malicious tampering detection via SHA-256 verification (HTTP 422), log hygiene verification |
+| Test Module | Tests | Subsystem Coverage |
+|---|---|---|
+| `backend/tests/test_anti_bot_ddos.py` | 6 | 'Not a Robot' mathematical challenge issuance, challenge verification, 24-hour verified human cache, DDoS burst attack detection, automated IP quarantine cache (HTTP 429), unblocking via captcha, and real-time shield telemetry |
+| `backend/tests/test_auth.py` | 5 | Admin login, operator login, invalid password rejection, JWT token decoding, RBAC privilege enforcement |
+| `backend/tests/test_cybersecurity.py` | 7 | Security headers (CSP, HSTS), path traversal containment, account enumeration defense, brute force lockout, IDOR protection, SQL injection resilience, security telemetry |
+| `backend/tests/test_docker_backend.py` | 11 | LocalStorageProvider atomic read/write, path traversal, deletion, DockerReplicationProvider SHA-256 verification, differential recovery, honest hardware telemetry, IDOR cross-tenant isolation |
+| `backend/tests/test_fault_injection.py` | 2 | Simulated Drive A failure, automated failover read routing to Drive B, Key-SD removal causing vault lockout |
+| `backend/tests/test_file_operations.py` | 1 | Multi-part upload, SHA-256 calculation, dual-drive synchronous replication, download with checksum header, clean deletion |
+| `backend/tests/test_hal_simulation.py` | 3 | StorageProvider CRUD, KeyDeviceProvider insertion/removal, EncryptionProvider vault unlock/lock, PowerProvider threshold shifts |
+| `backend/tests/test_mongo_clients.py` | 8 | Client creation, duplicate email rejection (409 Conflict), invalid ObjectId handling, client updates, client deletion, and protected endpoint access |
+| `backend/tests/test_rbac_matrix.py` | 4 | Guest read-only enforcement, Storage Admin vs Security Admin duty separation, guest expiration, and instant session revocation |
+| `backend/tests/test_security.py` | 3 | Path traversal sanitization, on-disk file tampering detection via SHA-256 verification (HTTP 422), log hygiene verification |
+| `backend/tests/test_storage_security.py` | 7 | IDOR download blocking, internal UUID path safety, dangerous executable upload blocking, temporary guest share tokens, preview-only shares, replication failure resilience, truthful storage telemetry |
 
 ---
 
@@ -20,36 +26,42 @@ Testing is mandatory for all EdgeStore subsystems. Features are not considered o
 
 Run the full pytest suite:
 ```bash
+# Windows PowerShell:
+$env:PYTHONPATH="."
 python -m pytest backend/tests/ -v
+
+# Linux / macOS:
+PYTHONPATH=. python -m pytest backend/tests/ -v
 ```
 
-Output:
+Expected result:
 ```
-backend/tests/test_auth.py::test_login_success PASSED
-backend/tests/test_auth.py::test_login_invalid_password PASSED
-backend/tests/test_auth.py::test_get_me PASSED
-backend/tests/test_auth.py::test_rbac_admin_endpoint_forbidden_for_user PASSED
-backend/tests/test_auth.py::test_rbac_admin_endpoint_allowed_for_admin PASSED
-backend/tests/test_fault_injection.py::test_drive_failure_and_failover_download PASSED
-backend/tests/test_fault_injection.py::test_key_sd_removal_locks_vault PASSED
-backend/tests/test_file_operations.py::test_file_upload_and_replication PASSED
-backend/tests/test_hal_simulation.py::test_simulation_storage_crud PASSED
-backend/tests/test_hal_simulation.py::test_simulation_key_device_and_encryption PASSED
-backend/tests/test_hal_simulation.py::test_simulation_power_provider_thresholds PASSED
-backend/tests/test_security.py::test_path_traversal_sanitization PASSED
-backend/tests/test_security.py::test_tampered_file_detection PASSED
-backend/tests/test_security.py::test_no_plaintext_passwords_in_audit PASSED
-
-14 passed in ~4.3s
+======================= 51 passed in ~28s =======================
 ```
 
 ---
 
-## 3. Frontend Production Build Validation
+## 3. Live Integration Testing
 
-Validate that React 18 frontend compiles with zero warnings or errors:
+For testing running Docker containers with MongoDB:
+```bash
+python ./.gemini/antigravity-ide/brain/<conversation-id>/scratch/test_live_clients_mongo.py
+```
+Validates:
+1. Administrator authentication & JWT generation
+2. Live appliance health probe
+3. Client creation in MongoDB
+4. Unique email collision rejection (`409 Conflict`)
+5. ID lookup and text search across address, company, and notes
+6. Client updates and EdgeStore audit log verification
+
+---
+
+## 4. Frontend Production Build Validation
+
+Validate that React 18 frontend compiles cleanly:
 ```bash
 cd frontend
 npm run build
 ```
-Result: Transforms 1,836+ modules into compressed distribution assets in under 3 seconds.
+Result: Builds production distribution bundle into `frontend/dist/`.

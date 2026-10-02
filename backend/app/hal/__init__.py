@@ -7,6 +7,7 @@ from backend.app.hal.interfaces import (
     PowerProvider,
     SystemMonitorProvider
 )
+from backend.app.hal.local_storage import LocalStorageProvider
 from backend.app.hal.simulation.storage import SimulationStorageProvider
 from backend.app.hal.simulation.key_device import SimulationKeyProvider
 from backend.app.hal.simulation.encryption import SimulationEncryptionProvider
@@ -21,25 +22,47 @@ from backend.app.hal.linux.replication import LinuxReplicationProvider
 from backend.app.hal.linux.power import LinuxPowerProvider
 from backend.app.hal.linux.monitor import LinuxSystemMonitorProvider
 
+from backend.app.hal.docker_hal import (
+    DockerReplicationProvider,
+    DockerEncryptionProvider,
+    DockerHardwareAuthProvider,
+    DockerPowerProvider,
+    DockerSystemMonitorProvider
+)
 from backend.app.core.logger import logger
 
 
 class HALContainer:
     """
     Dependency injection container for EdgeStore Hardware Abstraction Layer.
-    Supplies singletons configured for either simulation or real Raspberry Pi mode.
+    Supplies singletons configured for simulation, Docker persistent storage, or real Raspberry Pi mode.
     """
 
     def __init__(self):
-        mode = settings.ENVIRONMENT_MODE
-        logger.info(f"Initializing EdgeStore HAL Container in [{mode.value.upper()}] mode")
+        self.reconfigure(settings.ENVIRONMENT_MODE)
 
-        if mode == EnvironmentMode.SIMULATION:
+    def reconfigure(self, mode: EnvironmentMode = None):
+        target_mode = mode or settings.ENVIRONMENT_MODE
+        logger.info(f"Initializing EdgeStore HAL Container in [{target_mode.value.upper()}] mode")
+
+        if target_mode == EnvironmentMode.DOCKER:
+            self.primary_storage: StorageProvider = LocalStorageProvider(
+                settings.effective_primary_path, label="Drive A (Primary - Docker)"
+            )
+            self.replica_storage: StorageProvider = LocalStorageProvider(
+                settings.effective_replica_path, label="Drive B (Replica - Docker)"
+            )
+            self.key_device: KeyDeviceProvider = DockerHardwareAuthProvider()
+            self.encryption: EncryptionProvider = DockerEncryptionProvider()
+            self.replication: ReplicationProvider = DockerReplicationProvider()
+            self.power: PowerProvider = DockerPowerProvider()
+            self.monitor: SystemMonitorProvider = DockerSystemMonitorProvider()
+        elif target_mode == EnvironmentMode.SIMULATION:
             self.primary_storage: StorageProvider = SimulationStorageProvider(
-                settings.SIMULATION_PRIMARY_PATH, label="Drive A (Primary)"
+                settings.effective_primary_path, label="Drive A (Primary)"
             )
             self.replica_storage: StorageProvider = SimulationStorageProvider(
-                settings.SIMULATION_REPLICA_PATH, label="Drive B (Replica)"
+                settings.effective_replica_path, label="Drive B (Replica)"
             )
             self.key_device: KeyDeviceProvider = SimulationKeyProvider(
                 settings.SIMULATION_KEY_SD_PATH, settings.LINUX_KEY_FILE_NAME

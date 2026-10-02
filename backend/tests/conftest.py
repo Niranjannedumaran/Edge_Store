@@ -8,21 +8,33 @@ from sqlalchemy.orm import sessionmaker
 
 from backend.app.main import app
 from backend.app.db.database import Base, get_db
-from backend.app.config import settings
+from backend.app.config import settings, EnvironmentMode
 from backend.app.db.init_db import init_database
-from backend.app.hal import hal
+import backend.app.hal
+from backend.app.hal import hal, HALContainer
 
-TEST_DB_URL = "sqlite:///./test_edgestore.db"
+import tempfile
+TEST_DB_PATH = Path(tempfile.gettempdir()) / "test_edgestore.db"
+TEST_DB_URL = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
+    # Force simulation mode for unit/regression test runs
+    original_mode = settings.ENVIRONMENT_MODE
+    original_db_url = settings.DATABASE_URL
+    settings.ENVIRONMENT_MODE = EnvironmentMode.SIMULATION
+    settings.DATABASE_URL = TEST_DB_URL
+    hal.reconfigure(EnvironmentMode.SIMULATION)
+
     # Ensure test directories exist
     Path(settings.SIMULATION_PRIMARY_PATH).mkdir(parents=True, exist_ok=True)
     Path(settings.SIMULATION_REPLICA_PATH).mkdir(parents=True, exist_ok=True)
-    Path(settings.SIMULATION_KEY_SD_PATH).mkdir(parents=True, exist_ok=True)
+    key_sd_path = Path(settings.SIMULATION_KEY_SD_PATH)
+    key_sd_path.mkdir(parents=True, exist_ok=True)
+    (key_sd_path / settings.LINUX_KEY_FILE_NAME).write_text("EDGESTORE-LUKS2-SIMULATED-KEY-TOKEN-2026\n")
 
     # Re-initialize clean test database
     Base.metadata.drop_all(bind=test_engine)
@@ -30,13 +42,27 @@ def setup_test_environment():
 
     yield
 
+    settings.ENVIRONMENT_MODE = original_mode
+    settings.DATABASE_URL = original_db_url
+    hal.reconfigure(original_mode)
+
+
     # Teardown test db
-    test_db_path = Path("./test_edgestore.db")
-    if test_db_path.exists():
+    if TEST_DB_PATH.exists():
         try:
-            test_db_path.unlink()
+            TEST_DB_PATH.unlink()
         except Exception:
             pass
+
+
+@pytest.fixture(autouse=True)
+def reset_ddos_shield_per_test():
+    from backend.app.core.anti_bot import AntiBotDDoSShield
+    AntiBotDDoSShield.reset()
+    yield
+    AntiBotDDoSShield.reset()
+
+
 
 
 @pytest.fixture
@@ -49,12 +75,13 @@ def db_session():
 
 
 @pytest.fixture
-def client(db_session):
+def client():
     def override_get_db():
+        session = TestingSessionLocal()
         try:
-            yield db_session
+            yield session
         finally:
-            pass
+            session.close()
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:

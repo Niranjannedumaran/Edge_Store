@@ -75,30 +75,39 @@ class StorageProvider(ABC):
         pass
 
 
-class KeyDeviceProvider(ABC):
+class HardwareAuthenticationProvider(ABC):
     """
-    Abstract HAL interface for removable physical Key-SD hardware.
+    Abstract HAL interface for removable physical hardware authentication (Key-SD, cryptographic tokens, USB keys).
+    Supports future Key-SD integration, removable device detection, and boot authorization.
     """
 
     @abstractmethod
     def is_present(self) -> bool:
-        """Check physical or simulated presence of Key-SD device."""
+        """Check physical or environment presence of authentication hardware."""
         pass
 
     @abstractmethod
     def validate(self) -> bool:
-        """Validate partition signature, filesystem, and keyfile existence."""
+        """Validate partition signature, filesystem, and keyfile integrity."""
         pass
 
     @abstractmethod
     def get_key_material(self) -> Optional[bytes]:
-        """Extract securely stored key material from Key-SD device."""
+        """Extract securely stored key material from hardware device."""
         pass
 
     @abstractmethod
     def get_status(self) -> Dict[str, Any]:
-        """Return Key-SD state dictionary."""
+        """Return hardware authentication state dictionary."""
         pass
+
+
+class KeyDeviceProvider(HardwareAuthenticationProvider):
+    """
+    Abstract HAL interface for removable physical Key-SD hardware.
+    Subclasses HardwareAuthenticationProvider for backward-compatible naming.
+    """
+    pass
 
 
 class EncryptionProvider(ABC):

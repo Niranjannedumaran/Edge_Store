@@ -48,12 +48,19 @@ class ReplicationService:
     @staticmethod
     def trigger_rebuild(db: Session, user_id: int = None, username: str = None) -> Dict[str, Any]:
         """
-        Semi-Automated Replica Rebuild:
-        Rebuilds secondary drive from primary drive after administrator replaces failed hardware.
+        Replica Recovery & Rebuild Engine (Master Prompt Section 16):
+        1. Inspect primary files
+        2. Inspect replica files
+        3. Compare metadata and checksums
+        4. Identify missing or corrupted files
+        5. Copy missing files with atomic writes
+        6. Verify copied files with SHA-256
+        7. Update replica state in database
+        8. Record recovery audit log
         """
         AuditService.log_event(
             db, event_type="REBUILD_STARTED",
-            description="Semi-automated replica volume rebuild initiated by administrator",
+            description="Differential replica recovery and verification initiated",
             user_id=user_id, username=username, severity="WARNING"
         )
 
@@ -61,7 +68,7 @@ class ReplicationService:
         now = datetime.now(timezone.utc)
 
         if result.get("success"):
-            # Update all files in DB to SYNCED
+            # Update files that are healthy to SYNCED
             db.query(StoredFile).filter(
                 StoredFile.replica_status != FileReplicaStatus.DELETE_PENDING.value
             ).update({
@@ -72,13 +79,13 @@ class ReplicationService:
 
             AuditService.log_event(
                 db, event_type="REBUILD_COMPLETED",
-                description=f"Replica rebuild finished successfully. {result.get('rebuilt_count')} files synced.",
+                description=f"Replica recovery completed successfully. {result.get('rebuilt_count', 0)} files synced, {result.get('already_synced_count', 0)} intact.",
                 user_id=user_id, username=username, severity="INFO"
             )
         else:
             AuditService.log_event(
                 db, event_type="REBUILD_FAILED",
-                description=f"Replica rebuild encountered errors: {result.get('errors')}",
+                description=f"Replica recovery encountered errors: {result.get('errors')}",
                 user_id=user_id, username=username, severity="ERROR"
             )
 

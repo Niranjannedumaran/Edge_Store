@@ -4,80 +4,80 @@
 ![Encryption](https://img.shields.io/badge/Encryption-LUKS2%20512--bit-purple)
 ![Replication](https://img.shields.io/badge/Replication-Dual--Drive%20Mirror-green)
 ![Integrity](https://img.shields.io/badge/Integrity-SHA--256-orange)
-![License](https://img.shields.io/badge/License-Proprietary-red)
+![Docker](https://img.shields.io/badge/Docker-Production--Hardened-2496ED)
+![MongoDB](https://img.shields.io/badge/MongoDB-Async%20Client%20Store-47A248)
 
-**EdgeStore** is an enterprise-grade secure local storage appliance engineered for single-node **Raspberry Pi 4** physical hardware, featuring dual-drive replication, LUKS2 full-disk encryption, removable physical **Key-SD** authentication, and a modern enterprise management console.
-
-During local development without physical hardware, EdgeStore executes on a realistic **Hardware Abstraction Layer (HAL)** with a full-fidelity **Simulation Adapter** that models drive failures, Key-SD removal, and replication states with genuine file operations and SHA-256 validation.
-
----
-
-## Key Features
-
-1. **Hardware-Ready Abstraction Layer (HAL)**:
-   - Unified interfaces: `StorageProvider`, `KeyDeviceProvider`, `EncryptionProvider`, `ReplicationProvider`, `PowerProvider`, `SystemMonitorProvider`.
-   - Dual implementations:
-     - **Simulation Adapter**: Runs on laptop, performs real file I/O, supports interactive fault injection.
-     - **Linux Hardware Adapter**: Production-ready for Raspberry Pi OS with `cryptsetup`, `mount`, `udev`, `systemd`, and `rsync`.
-2. **Physical Key-SD Authentication**:
-   - Hardware key material stored exclusively on removable Key-SD token.
-   - Removing the Key-SD triggers automated filesystem buffer flushing (`sync`), volume unmounting (`umount`), crypt mapper closing (`cryptsetup luksClose`), and vault lockout (`HTTP 423 Locked`).
-3. **LUKS2 Full-Disk Storage Encryption**:
-   - `aes-xts-plain64` with 512-bit key size and `argon2id` key derivation across both drives.
-4. **Dual-Drive Redundancy & Hot Failover**:
-   - Primary (Drive A) and Replica (Drive B) mirror all user uploads with post-copy SHA-256 verification.
-   - If Drive A fails, read requests automatically fail over to Drive B with degraded state flagging.
-5. **Semi-Automated Replica Rebuild**:
-   - Avoids dangerous autonomous formatting of unknown drives.
-   - Allows administrators to rebuild replacement drives with complete cryptographic verification.
-6. **Enterprise Web Console**:
-   - High-density, professional React 18 interface with custom CSS design tokens.
-   - Dark and Light themes with WCAG AAA accessibility.
-   - Interactive **Developer Hardware Simulation Dock** for testing faults (drive failure, key removal, battery level).
+**EdgeStore** is an enterprise-grade, secure edge storage appliance featuring dual-drive replication with cryptographic SHA-256 validation, unprivileged containerized security, integrated MongoDB client storage, and a hardened management dashboard.
 
 ---
 
-## Quickstart (Simulation Mode)
+## Deployment Modes
 
-### 1. Prerequisites
-- Python 3.10+
-- Node.js 18+ and npm 9+
+EdgeStore operates in three distinct environments via its universal **Hardware Abstraction Layer (HAL)**:
 
-### 2. Install & Run Backend
+1. **Docker Appliance Mode (Recommended)**:
+   - Hardened container architecture running non-root (`UID 10001`) with dropped Linux capabilities (`cap_drop: ALL`).
+   - Real persistent named volumes for Primary (`/data/primary`), Replica (`/data/replica`), SQLite Database (`/data/db`), and MongoDB (`edgestore_mongo_data`).
+   - Instant one-click private deployment via `deploy-own.ps1` or `docker compose up -d --build`.
+2. **Laptop Simulation Mode**:
+   - Executes locally on Windows, macOS, or Linux with authentic atomic file operations.
+   - Interactive fault injection testing drive failures, Key-SD token removal, and battery shifts.
+3. **Raspberry Pi 4 Hardware Mode**:
+   - Production hardware setup with dual USB 3.0 HDDs formatted with LUKS2 (`aes-xts-plain64`, 512-bit), physical Key-SD device authentication, and systemd automation.
+
+---
+
+## Quickstart — One-Line Deployment (Copy & Paste)
+
+Deploy the complete stack (**Web Console + Backend API + MongoDB + Dual Storage**) with one terminal command:
+
 ```bash
-# Clone & install dependencies
-python -m pip install -r requirements.txt
+docker compose up -d --build
+```
+> 💡 **Windows users:** You can also just double-click [`start.bat`](start.bat) to start, and [`stop.bat`](stop.bat) to stop!
 
-# Initialize database & seed admin
-python -m backend.app.db.init_db
+- **Web Dashboard**: [http://localhost:8000/](http://localhost:8000/)
+- **Default Login**: `admin` / `AdminEdgeStore2026!`
+- **API Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
 
-# Start FastAPI backend
-python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+### Custom Private Deployment (Windows PowerShell)
+To set your own custom password, custom port, and auto-generated 256-bit JWT secret:
+```powershell
+.\deploy-own.ps1
+```
+*(Or double-click `deploy-own.bat`)*
+
+Check status anytime:
+```bash
+docker compose ps
 ```
 
-### 3. Install & Run Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
+---
 
-Open `http://127.0.0.1:5173/` in your browser.
+## Default Credentials
 
-### 4. Default Credentials
-| Account | Username | Password | Assigned Role | Capabilities |
+| Account | Username | Default Password | Assigned Role | Capabilities |
 |---|---|---|---|---|
 | **System Administrator** | `admin` | `AdminEdgeStore2026!` | `super_admin` | Full appliance administration (All 35 permissions) |
 | **Storage Operator** | `operator` | `OperatorEdgeStore2026!` | `storage_admin` | Drive management, replication, semi-automated rebuilds |
 | **Guest / Reviewer** | `guest` | `GuestEdgeStore2026!` | `guest` | Strictly read-only file list & preview (Zero write/delete) |
 
+*(Note: Custom credentials configured via `deploy-own.ps1` or `.env` override these defaults).*
+
 ---
 
-## Automated Verification
+## Automated Verification & Testing
 
-Run all automated pytest suites (unit, integration, security, fault injection):
+Run all **51 automated tests** covering authentication, RBAC, IDOR protection, MongoDB client operations, atomic writes, fault injection, and replication:
+
 ```bash
+# Windows PowerShell
+$env:PYTHONPATH="."
 python -m pytest backend/tests/ -v
+
+# Linux / macOS
+PYTHONPATH=. python -m pytest backend/tests/ -v
 ```
 
 Validate frontend production build:
@@ -88,17 +88,18 @@ npm run build
 
 ---
 
-## Technical Documentation & Architecture Diagrams
+## Technical Documentation
 
-Comprehensive documentation is available in the `docs/` directory:
-- [Architecture & 18 Mermaid Diagrams](docs/architecture.md)
-- [Setup Guide](docs/setup.md)
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+- [Custom Private Deployment Guide](docs/custom-deployment.md)
+- [Setup & Quickstart Guide](docs/setup.md)
+- [System Architecture & Diagrams](docs/architecture.md)
+- [REST API Specification](docs/api.md)
+- [Database & MongoDB Architecture](docs/database.md)
+- [Security & Defense-in-Depth](docs/security.md)
+- [Automated Testing Guide](docs/testing.md)
 - [Simulation & Fault Injection](docs/simulation.md)
 - [Raspberry Pi Hardware Deployment](docs/raspberry-pi-deployment.md)
 - [Storage & Replication State Machine](docs/storage.md)
-- [Security & Defense-in-Depth](docs/security.md)
-- [REST API Specification](docs/api.md)
-- [Database & Metadata Architecture](docs/database.md)
-- [Automated Testing Guide](docs/testing.md)
 - [Troubleshooting & Diagnostics](docs/troubleshooting.md)
-- [Development Workflow](docs/development.md)
+- [Development Workflow & Standards](docs/development.md)

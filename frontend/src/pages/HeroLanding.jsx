@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import Lenis from "lenis";
+import "lenis/dist/lenis.css";
+import { EdgeStoreLogo } from "../components/common/EdgeStoreLogo";
 import {
   Layers,
   Search,
@@ -33,22 +36,74 @@ import {
 export function HeroLanding({ onGetStarted, user }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
+  const lenisRef = useRef(null);
   const [activeTab, setActiveTab] = useState("cli");
   const [showCredsModal, setShowCredsModal] = useState(false);
 
-  // Mouse spotlight tracker updating --mouse-x and --mouse-y CSS variables
+  // Initialize Lenis luxury smooth inertia scrolling for mouse wheel, trackpad & touch
   useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        containerRef.current.style.setProperty("--mouse-x", `${x}px`);
-        containerRef.current.style.setProperty("--mouse-y", `${y}px`);
-      }
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: "vertical",
+      gestureOrientation: "vertical",
+      smoothWheel: true,
+      wheelMultiplier: 1.0,
+      touchMultiplier: 1.5,
+      infinite: false,
+    });
+    lenisRef.current = lenis;
+
+    let rafId;
+    function raf(time) {
+      lenis.raf(time);
+      rafId = requestAnimationFrame(raf);
+    }
+    rafId = requestAnimationFrame(raf);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      lenis.destroy();
+      lenisRef.current = null;
     };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
+  // Smooth scroll handler for nav tabs with Lenis interpolation
+  const scrollToSection = (e, id) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const el = document.getElementById(id);
+    if (el) {
+      if (lenisRef.current) {
+        lenisRef.current.scrollTo(el, { offset: -80, duration: 1.2 });
+      } else {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  };
+
+  // Mouse spotlight tracker optimized with requestAnimationFrame
+  useEffect(() => {
+    let rafId;
+    const handleMouseMove = (e) => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          containerRef.current.style.setProperty("--mouse-x", `${x}px`);
+          containerRef.current.style.setProperty("--mouse-y", `${y}px`);
+        }
+      });
+    };
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // 3D Canvas Particle Network with Line Connections (Tidiane Tambadou / Adrino Labs hybrid)
@@ -295,38 +350,42 @@ export function HeroLanding({ onGetStarted, user }) {
       <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#020204]/75 border-b border-white/5 transition-all">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Left: Brand Logo */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center">
-              <div className="absolute inset-0 bg-purple-600/40 blur-md rounded-lg" />
-              <div className="relative w-8 h-8 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center text-white">
-                <Layers size={18} className="text-purple-400" />
-              </div>
-            </div>
-            <span className="font-bold text-lg tracking-tight text-white flex items-center gap-1.5">
-              EDGESTORE
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 font-mono font-medium">
-                LUKS2
-              </span>
-            </span>
-          </div>
+          <EdgeStoreLogo size={34} showText={true} textClassName="font-bold text-lg tracking-tight text-white" />
 
           {/* Center: Navigation Links Pill */}
           <nav className="hidden md:flex items-center gap-1 px-4 py-1.5 rounded-full bg-white/[0.03] border border-white/10 text-xs font-medium text-slate-300">
-            <a href="#platform" className="px-3 py-1 rounded-full hover:text-white hover:bg-white/5 transition-all">
-              Platform
-            </a>
-            <a href="#security" className="px-3 py-1 rounded-full hover:text-white hover:bg-white/5 transition-all">
-              Zero-Trust
-            </a>
-            <a href="#hardware" className="px-3 py-1 rounded-full hover:text-white hover:bg-white/5 transition-all">
-              Hardware HAL
-            </a>
-            <a href="#metrics" className="px-3 py-1 rounded-full hover:text-white hover:bg-white/5 transition-all">
-              Replication
-            </a>
             <button
+              type="button"
+              onClick={(e) => scrollToSection(e, "platform")}
+              className="px-3 py-1 rounded-full text-slate-300 hover:text-white hover:bg-white/5 transition-all bg-transparent border-0 cursor-pointer text-xs font-medium"
+            >
+              Platform
+            </button>
+            <button
+              type="button"
+              onClick={(e) => scrollToSection(e, "security")}
+              className="px-3 py-1 rounded-full text-slate-300 hover:text-white hover:bg-white/5 transition-all bg-transparent border-0 cursor-pointer text-xs font-medium"
+            >
+              Zero-Trust
+            </button>
+            <button
+              type="button"
+              onClick={(e) => scrollToSection(e, "hardware")}
+              className="px-3 py-1 rounded-full text-slate-300 hover:text-white hover:bg-white/5 transition-all bg-transparent border-0 cursor-pointer text-xs font-medium"
+            >
+              Hardware HAL
+            </button>
+            <button
+              type="button"
+              onClick={(e) => scrollToSection(e, "metrics")}
+              className="px-3 py-1 rounded-full text-slate-300 hover:text-white hover:bg-white/5 transition-all bg-transparent border-0 cursor-pointer text-xs font-medium"
+            >
+              Replication
+            </button>
+            <button
+              type="button"
               onClick={() => setShowCredsModal(true)}
-              className="px-3 py-1 rounded-full text-purple-300 hover:text-purple-200 hover:bg-purple-500/10 transition-all font-semibold"
+              className="px-3 py-1 rounded-full text-purple-300 hover:text-purple-200 hover:bg-purple-500/10 transition-all font-semibold bg-transparent border-0 cursor-pointer text-xs"
             >
               Credentials
             </button>
@@ -344,10 +403,11 @@ export function HeroLanding({ onGetStarted, user }) {
             </div>
 
             <button
+              type="button"
               onClick={onGetStarted}
-              className="px-4 py-2 text-xs font-semibold rounded-full bg-white text-black hover:bg-zinc-200 transition-all flex items-center gap-1.5 shadow-[0_0_20px_rgba(255,255,255,0.15)] active:scale-95"
+              className="px-4 py-2 text-xs font-semibold rounded-full bg-white text-black hover:bg-zinc-200 transition-all flex items-center gap-1.5 shadow-[0_0_20px_rgba(255,255,255,0.15)] active:scale-95 cursor-pointer"
             >
-              <span>{user ? "Enter Console" : "Get Started"}</span>
+              <span>Get Started</span>
               <ArrowRight size={13} />
             </button>
           </div>
@@ -408,17 +468,19 @@ export function HeroLanding({ onGetStarted, user }) {
           {/* Primary Conic-Glow Button */}
           <div className="btn-glow-border">
             <button
+              type="button"
               onClick={onGetStarted}
-              className="relative px-6 py-3 rounded-full bg-zinc-950 text-white font-medium text-sm hover:bg-zinc-900 transition-all flex items-center gap-2 z-10"
+              className="relative px-6 py-3 rounded-full bg-zinc-950 text-white font-medium text-sm hover:bg-zinc-900 transition-all flex items-center gap-2 z-10 cursor-pointer"
             >
-              <span>{user ? "Open Console Dashboard" : "Get Started • Access Console"}</span>
+              <span>Get Started • Access Console</span>
               <ArrowRight size={15} className="text-purple-400" />
             </button>
           </div>
 
           <button
+            type="button"
             onClick={() => setShowCredsModal(true)}
-            className="px-6 py-3 rounded-full bg-white/[0.04] border border-white/10 text-slate-300 text-sm font-medium hover:bg-white/[0.08] hover:text-white transition-all flex items-center gap-2"
+            className="px-6 py-3 rounded-full bg-white/[0.04] border border-white/10 text-slate-300 text-sm font-medium hover:bg-white/[0.08] hover:text-white transition-all flex items-center gap-2 cursor-pointer"
           >
             <ShieldCheck size={16} className="text-emerald-400" />
             <span>Default Credentials</span>
@@ -426,7 +488,7 @@ export function HeroLanding({ onGetStarted, user }) {
         </div>
 
         {/* 3D Perspective Dashboard Preview (with Mini-Sidebar, Stat Grid, Scanline, and SVG Graph) */}
-        <div className="w-full max-w-5xl dashboard-container">
+        <div id="metrics" className="w-full max-w-5xl dashboard-container">
           <div className="dashboard-card relative w-full bg-[#0a0a0f] border border-white/10 rounded-2xl p-4 sm:p-6 overflow-hidden text-left">
             <div className="scanline-bar" />
 
@@ -884,10 +946,11 @@ export function HeroLanding({ onGetStarted, user }) {
           </p>
 
           <button
+            type="button"
             onClick={onGetStarted}
-            className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-sm hover:bg-zinc-200 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)] active:scale-95 inline-flex items-center gap-2"
+            className="px-8 py-3.5 rounded-full bg-white text-black font-bold text-sm hover:bg-zinc-200 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)] active:scale-95 inline-flex items-center gap-2 cursor-pointer"
           >
-            <span>{user ? "Enter Console Dashboard" : "Get Started • Access Console"}</span>
+            <span>Get Started • Access Console</span>
             <ArrowRight size={15} />
           </button>
         </div>
@@ -896,9 +959,8 @@ export function HeroLanding({ onGetStarted, user }) {
         <footer className="mt-20 pt-12 border-t border-white/5 text-xs text-slate-500">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 text-left mb-12">
             <div className="col-span-2">
-              <div className="flex items-center gap-2 text-white font-bold text-base mb-3">
-                <Layers size={18} className="text-purple-400" />
-                <span>EDGESTORE</span>
+              <div className="mb-3">
+                <EdgeStoreLogo size={26} showText={true} textClassName="text-white font-bold text-base" />
               </div>
               <p className="text-slate-400 max-w-sm mb-4 leading-relaxed">
                 Secure edge storage appliance prototype designed for Raspberry Pi 4 with physical Key-SD authentication,
@@ -920,20 +982,20 @@ export function HeroLanding({ onGetStarted, user }) {
             <div>
               <h5 className="text-white font-semibold mb-3">Product</h5>
               <ul className="space-y-2">
-                <li><a href="#platform" className="hover:text-slate-300">Architecture</a></li>
-                <li><a href="#security" className="hover:text-slate-300">Zero Trust</a></li>
-                <li><a href="#hardware" className="hover:text-slate-300">Hardware HAL</a></li>
-                <li><a href="#metrics" className="hover:text-slate-300">Replication</a></li>
+                <li><button type="button" onClick={(e) => scrollToSection(e, "platform")} className="text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer text-xs p-0">Architecture</button></li>
+                <li><button type="button" onClick={(e) => scrollToSection(e, "security")} className="text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer text-xs p-0">Zero Trust</button></li>
+                <li><button type="button" onClick={(e) => scrollToSection(e, "hardware")} className="text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer text-xs p-0">Hardware HAL</button></li>
+                <li><button type="button" onClick={(e) => scrollToSection(e, "metrics")} className="text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer text-xs p-0">Replication</button></li>
               </ul>
             </div>
 
             <div>
               <h5 className="text-white font-semibold mb-3">Resources</h5>
               <ul className="space-y-2">
-                <li><a href="#" onClick={onGetStarted} className="hover:text-slate-300">Console Login</a></li>
-                <li><button onClick={() => setShowCredsModal(true)} className="hover:text-slate-300">Default Credentials</button></li>
-                <li><a href="#" className="hover:text-slate-300">API Documentation</a></li>
-                <li><a href="#" className="hover:text-slate-300">Security Model</a></li>
+                <li><button type="button" onClick={onGetStarted} className="text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer text-xs p-0">Console Login</button></li>
+                <li><button type="button" onClick={() => setShowCredsModal(true)} className="text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer text-xs p-0">Default Credentials</button></li>
+                <li><button type="button" onClick={(e) => scrollToSection(e, "platform")} className="text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer text-xs p-0">API Documentation</button></li>
+                <li><button type="button" onClick={(e) => scrollToSection(e, "security")} className="text-slate-400 hover:text-slate-300 bg-transparent border-0 cursor-pointer text-xs p-0">Security Model</button></li>
               </ul>
             </div>
 

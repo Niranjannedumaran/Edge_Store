@@ -27,46 +27,46 @@
   --transition-normal: 0.25s ease;
 }
 
-/* Dark Theme (Default Enterprise Mode) */
+/* Dark Theme (EdgeStore Hero / Adrino Obsidian Mode) */
 body[data-theme="dark"], :root:not([data-theme="light"]) {
-  --bg-app: #090d13;
-  --bg-surface: #0f1722;
-  --bg-surface-raised: #152232;
-  --bg-surface-active: #1d2e44;
-  --bg-subtle: #121c29;
+  --bg-app: #020204;
+  --bg-surface: #09090d;
+  --bg-surface-raised: #121218;
+  --bg-surface-active: #1a1a24;
+  --bg-subtle: #0d0d14;
 
-  --border-color: #24354b;
-  --border-subtle: #192738;
-  --border-focus: #388bfd;
+  --border-color: rgba(255, 255, 255, 0.09);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-focus: #c084fc;
 
-  --text-main: #e6edf3;
-  --text-muted: #8b9bb4;
-  --text-dim: #5c6f84;
-  --text-inverse: #090d13;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --text-inverse: #020204;
 
   /* Semantic Palettes */
-  --status-healthy-bg: rgba(35, 134, 54, 0.15);
-  --status-healthy-border: #238636;
-  --status-healthy-text: #3fb950;
+  --status-healthy-bg: rgba(34, 197, 94, 0.12);
+  --status-healthy-border: #22c55e;
+  --status-healthy-text: #4ade80;
 
-  --status-warning-bg: rgba(187, 128, 9, 0.15);
-  --status-warning-border: #bb8009;
-  --status-warning-text: #e3b341;
+  --status-warning-bg: rgba(234, 179, 8, 0.12);
+  --status-warning-border: #eab308;
+  --status-warning-text: #facc15;
 
-  --status-critical-bg: rgba(218, 54, 51, 0.15);
-  --status-critical-border: #da3633;
-  --status-critical-text: #f85149;
+  --status-critical-bg: rgba(239, 68, 68, 0.12);
+  --status-critical-border: #ef4444;
+  --status-critical-text: #f87171;
 
-  --status-info-bg: rgba(31, 111, 235, 0.15);
-  --status-info-border: #1f6feb;
-  --status-info-text: #58a6ff;
+  --status-info-bg: rgba(56, 189, 248, 0.12);
+  --status-info-border: #38bdf8;
+  --status-info-text: #38bdf8;
 
-  --status-security-bg: rgba(137, 87, 229, 0.15);
-  --status-security-border: #8957e5;
-  --status-security-text: #bc8cff;
+  --status-security-bg: rgba(168, 85, 247, 0.15);
+  --status-security-border: #a855f7;
+  --status-security-text: #c084fc;
 
-  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-dock: 0 -4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 8px 24px -6px rgba(0, 0, 0, 0.7), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+  --shadow-dock: 0 -8px 25px rgba(0, 0, 0, 0.8);
 }
 
 /* Light Theme */
@@ -118,8 +118,12 @@ body[data-theme="light"] {
   padding: 0;
 }
 
-html, body, #root {
-  height: 100%;
+html {
+  scroll-behavior: smooth !important;
+}
+
+html, body {
+  min-height: 100%;
   width: 100%;
   font-family: var(--font-sans);
   font-size: 14px;
@@ -129,6 +133,18 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color var(--transition-normal), color var(--transition-normal);
+  scroll-behavior: smooth !important;
+}
+
+#root {
+  min-height: 100%;
+  width: 100%;
+}
+
+/* Sections smooth scroll offset for sticky header */
+#platform, #security, #hardware, #metrics, section[id] {
+  scroll-margin-top: 84px;
+  scroll-behavior: smooth;
 }
 
 a {
@@ -200,6 +216,22 @@ button, input, select, textarea {
   overflow-y: auto;
   padding: var(--space-6);
   background-color: var(--bg-app);
+  scroll-behavior: smooth;
+}
+
+.app-content > * {
+  animation: tabFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Brand & Typography */
@@ -280,7 +312,8 @@ button, input, select, textarea {
 
 .nav-item.active {
   background-color: var(--bg-surface-active);
-  color: var(--status-info-text);
+  color: #c084fc;
+  border-left: 2px solid #a855f7;
   font-weight: 600;
 }
 
@@ -473,11 +506,15 @@ button, input, select, textarea {
 }
 
 .btn-primary {
-  background-color: var(--status-info-border);
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
   color: #fff;
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.25);
 }
 .btn-primary:hover {
-  background-color: var(--border-focus);
+  background: linear-gradient(135deg, #c084fc, #8b5cf6);
+  border-color: rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.45);
 }
 
 .btn-secondary {

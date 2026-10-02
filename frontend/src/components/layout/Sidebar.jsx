@@ -19,6 +19,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useHardware } from "../../context/HardwareContext";
 import { StatusBadge } from "../common/StatusBadge";
+import { EdgeStoreLogo } from "../common/EdgeStoreLogo";
 
 export function Sidebar({ currentTab, setCurrentTab }) {
   const {
@@ -100,9 +101,7 @@ export function Sidebar({ currentTab, setCurrentTab }) {
   return (
     <aside className="app-sidebar">
       <div className="brand-header">
-        <div className="brand-icon">
-          <Shield size={16} />
-        </div>
+        <EdgeStoreLogo size={28} />
         <div className="brand-title">
           <span>EdgeStore</span>
           <span className="brand-badge">{isSimulated ? "SIM" : "RPI4"}</span>

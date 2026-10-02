@@ -4,6 +4,15 @@ import { apiRequest } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { StatusBadge } from "../components/common/StatusBadge";
 
+const TEXT_FILE_EXTENSIONS = new Set([
+  "csv", "css", "html", "js", "json", "jsx", "log", "md", "py", "ts", "tsx", "txt", "xml", "yaml", "yml"
+]);
+
+function isTextFile(filename = "") {
+  const extension = filename.split(".").pop()?.toLowerCase();
+  return TEXT_FILE_EXTENSIONS.has(extension);
+}
+
 export function GuestView() {
   const { user, hasPermission } = useAuth();
   const [files, setFiles] = useState([]);
@@ -11,6 +20,8 @@ export function GuestView() {
   const [loading, setLoading] = useState(true);
   const [previewFile, setPreviewFile] = useState(null);
   const [previewContent, setPreviewContent] = useState(null);
+  const [previewKind, setPreviewKind] = useState("text");
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   const canDownload = hasPermission("files.download");
 
@@ -31,16 +42,33 @@ export function GuestView() {
   }, [search]);
 
   const handlePreview = async (file) => {
+    if (previewUrl) window.URL.revokeObjectURL(previewUrl);
     setPreviewFile(file);
     setPreviewContent("Loading preview content...");
+    setPreviewKind("text");
+    setPreviewUrl(null);
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/files/${file.id}/download`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("edgestore_token")}`
-        }
-      });
-      if (response.ok) {
-        const text = await response.text();
+      const result = await apiRequest(`/files/${file.id}/download`);
+      const contentType = result.headers?.get("content-type") || "";
+      const blob = result.blob;
+      if (blob && contentType.startsWith("image/")) {
+        setPreviewKind("image");
+        setPreviewUrl(window.URL.createObjectURL(blob));
+        setPreviewContent(null);
+        return;
+      }
+      if (blob && contentType.includes("application/pdf")) {
+        setPreviewKind("pdf");
+        setPreviewUrl(window.URL.createObjectURL(blob));
+        setPreviewContent(null);
+        return;
+      }
+      if (typeof result === "string" || contentType.startsWith("text/") || contentType.includes("application/json") || isTextFile(file.filename)) {
+        const text = typeof result === "string"
+          ? result
+          : blob
+            ? await blob.text()
+            : JSON.stringify(result, null, 2);
         setPreviewContent(text.slice(0, 4000));
       } else {
         setPreviewContent("Preview unavailable for this binary format or file is encrypted.");
@@ -50,15 +78,16 @@ export function GuestView() {
     }
   };
 
+  const closePreview = () => {
+    if (previewUrl) window.URL.revokeObjectURL(previewUrl);
+    setPreviewFile(null);
+    setPreviewContent(null);
+    setPreviewUrl(null);
+  };
+
   const handleDownload = (file) => {
-    const token = localStorage.getItem("edgestore_token");
-    const link = document.createElement("a");
-    link.href = `http://127.0.0.1:8000/api/files/${file.id}/download`;
-    // Add token header via fetch or direct download
-    fetch(`http://127.0.0.1:8000/api/files/${file.id}/download`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.blob())
+    apiRequest(`/files/${file.id}/download`)
+      .then(result => result.blob || new Blob([result], { type: file.content_type || "application/octet-stream" }))
       .then(blob => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -231,32 +260,43 @@ export function GuestView() {
               </div>
               <button
                 className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  setPreviewFile(null);
-                  setPreviewContent(null);
-                }}
+                onClick={closePreview}
               >
                 Close
               </button>
             </div>
 
-            <div
-              style={{
-                flex: 1,
-                background: "var(--surface-sunken)",
-                padding: 14,
-                borderRadius: "var(--radius-sm)",
-                fontFamily: "var(--font-mono)",
-                fontSize: 12,
-                overflowY: "auto",
-                whiteSpace: "pre-wrap",
-                color: "var(--text-main)",
-                maxHeight: 380,
-                border: "1px solid var(--border-subtle)"
-              }}
-            >
-              {previewContent}
-            </div>
+            {previewKind === "image" && previewUrl ? (
+              <img
+                src={previewUrl}
+                alt={`Read-only preview of ${previewFile.filename}`}
+                style={{ maxWidth: "100%", maxHeight: 420, objectFit: "contain", background: "var(--surface-sunken)", borderRadius: "var(--radius-sm)" }}
+              />
+            ) : previewKind === "pdf" && previewUrl ? (
+              <iframe
+                title={`Read-only preview of ${previewFile.filename}`}
+                src={previewUrl}
+                style={{ width: "100%", height: 420, border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)", background: "var(--surface-sunken)" }}
+              />
+            ) : (
+              <div
+                style={{
+                  flex: 1,
+                  background: "var(--surface-sunken)",
+                  padding: 14,
+                  borderRadius: "var(--radius-sm)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 12,
+                  overflowY: "auto",
+                  whiteSpace: "pre-wrap",
+                  color: "var(--text-main)",
+                  maxHeight: 380,
+                  border: "1px solid var(--border-subtle)"
+                }}
+              >
+                {previewContent}
+              </div>
+            )}
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
               <span className="badge badge-info">Read-Only Secure Preview</span>

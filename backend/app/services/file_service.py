@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
 from backend.app.models.file import StoredFile, FileReplicaStatus
 from backend.app.models.user import User, UserRole
+from backend.app.models.share import FileShare
 from backend.app.hal import hal
 from backend.app.services.storage_manager import StorageManager
 from backend.app.services.replication_service import ReplicationService
@@ -18,11 +19,11 @@ from backend.app.core.exceptions import (
     SecurityViolationException,
     ValidationException
 )
+from backend.app.config import settings
 from backend.app.core.logger import logger
 
 DANGEROUS_EXTENSIONS = {
-    ".exe", ".bat", ".cmd", ".sh", ".bash", ".vbs", ".ps1", ".elf",
-    ".bin", ".com", ".scr", ".pif", ".hta", ".cpl", ".jar"
+    ".exe", ".bat", ".cmd", ".vbs", ".ps1", ".com", ".scr", ".pif", ".hta", ".cpl"
 }
 
 
@@ -59,11 +60,11 @@ class FileService:
     ) -> Dict[str, Any]:
         """
         Complete File Upload Workflow:
-        1. Validate filename and size
+        1. Validate filename, size, and extension security
         2. Generate SHA-256 checksum
-        3. Write to primary storage provider
+        3. Write to primary storage provider using atomic write
         4. Create database metadata record with replica_status='pending'
-        5. Trigger replication to replica volume
+        5. Trigger replication to replica volume with SHA-256 verification
         6. Return truthful response
         """
         if not hal.encryption.is_unlocked():
@@ -73,17 +74,31 @@ class FileService:
             raise StorageUnavailableException("Primary storage drive is unavailable or unmounted")
 
         safe_name = FileService.sanitize_filename(filename)
+
+        # Extension and executable upload prevention
+        ext = os.path.splitext(safe_name)[1].lower()
+        if ext in DANGEROUS_EXTENSIONS:
+            AuditService.log_event(
+                db, event_type="SECURITY_EVENT",
+                description=f"User '{current_user.username}' attempted to upload prohibited executable extension '{ext}' ({safe_name})",
+                user_id=current_user.id, username=current_user.username, severity="WARNING"
+            )
+            raise ValidationException(f"Upload rejected: Disallowed executable file extension '{ext}'")
+
         file_size = len(data)
+        if file_size > settings.MAX_UPLOAD_SIZE_BYTES:
+            raise ValidationException(f"File size ({file_size} bytes) exceeds maximum limit of {settings.MAX_UPLOAD_SIZE_BYTES} bytes")
+
         sha256_hash = hashlib.sha256(data).hexdigest()
 
-        # Generate unique storage path on volume to avoid collisions
+        # Generate safe internal UUID storage path on volume to prevent any path injection
         unique_id = str(uuid.uuid4())
-        storage_rel_path = f"files/{current_user.id}/{unique_id[:8]}_{safe_name}"
+        storage_rel_path = f"files/{current_user.id}/{unique_id}"
 
-        # Write to primary
+        # Write to primary with atomic write
         hal.primary_storage.write(storage_rel_path, data)
 
-        # Create DB record
+        # Create DB record (original safe filename preserved in metadata)
         stored_file = StoredFile(
             id=unique_id,
             owner_id=current_user.id,
@@ -116,22 +131,55 @@ class FileService:
         }
 
     @staticmethod
-    def get_file(db: Session, file_id: str, current_user: User) -> StoredFile:
+    def get_file(db: Session, file_id: str, current_user: User, share_token: Optional[str] = None) -> StoredFile:
         file_record = db.query(StoredFile).filter(StoredFile.id == file_id).first()
         if not file_record:
             raise FileNotFoundException(f"File {file_id} not found")
 
-        # RBAC: users with files.read permission can access file
-        if not current_user.has_permission("files.read") and file_record.owner_id != current_user.id:
-            raise AuthorizationException("Access denied to requested file")
+        # Object-Level Authorization:
+        # Permitted if:
+        # 1. User is the resource owner
+        # 2. User is Super Admin, Storage Admin, or possesses files.manage
+        # 3. Request is accompanied by a valid temporary FileShare token
+        # 4. User is an active Guest reviewer viewing authorized verified files
+        is_owner = (file_record.owner_id == current_user.id)
+        is_admin = current_user.role in ("super_admin", "admin", "storage_admin") or current_user.has_permission("files.manage")
+        
+        has_valid_share = False
+        if share_token:
+            share = db.query(FileShare).filter(FileShare.id == share_token, FileShare.file_id == file_id).first()
+            if share and share.is_valid():
+                has_valid_share = True
+            else:
+                AuditService.log_event(
+                    db, event_type="ACCESS_DENIED",
+                    description=f"Attempted access with invalid, expired, or revoked share token '{share_token[:8]}...'",
+                    severity="WARNING"
+                )
+                raise AuthorizationException("Share link is invalid, expired, or has reached its usage limit")
+
+        is_guest_viewer = (current_user.role == "guest" and current_user.has_permission("files.preview"))
+
+        if not (is_owner or is_admin or has_valid_share or is_guest_viewer):
+            AuditService.log_event(
+                db, event_type="ACCESS_DENIED",
+                description=f"User '{current_user.username}' (id={current_user.id}) denied access to file '{file_record.filename}' owned by user {file_record.owner_id} (IDOR Defense)",
+                user_id=current_user.id, username=current_user.username, severity="WARNING"
+            )
+            raise AuthorizationException("You do not have permission to access or modify this resource (ownership required)")
 
         return file_record
 
     @staticmethod
-    def download_file(db: Session, file_id: str, current_user: User) -> Tuple[bytes, StoredFile, bool]:
+    def download_file(
+        db: Session,
+        file_id: str,
+        current_user: User,
+        share_token: Optional[str] = None
+    ) -> Tuple[bytes, StoredFile, bool]:
         """
         Download Workflow:
-        1. Resolve metadata and access permissions
+        1. Resolve metadata and object-level permissions
         2. Determine healthy storage source (Primary or failover to Replica)
         3. Read data
         4. Verify SHA-256 against stored checksum
@@ -140,7 +188,13 @@ class FileService:
         if not hal.encryption.is_unlocked():
             raise StorageUnavailableException("Storage vault is locked. Unlock using Key-SD before downloading.")
 
-        stored_file = FileService.get_file(db, file_id, current_user)
+        stored_file = FileService.get_file(db, file_id, current_user, share_token=share_token)
+
+        # Check download authorization for share tokens
+        if share_token:
+            share = db.query(FileShare).filter(FileShare.id == share_token).first()
+            if share and not share.allow_download and not current_user.has_permission("files.download"):
+                raise AuthorizationException("This share link grants read-only preview. Downloading file is restricted.")
 
         # Resolve provider with automatic replica failover
         provider, drive_label, is_degraded_fallback = StorageManager.resolve_read_provider(stored_file.storage_path)
@@ -308,9 +362,11 @@ class FileService:
     ) -> List[Dict[str, Any]]:
         query = db.query(StoredFile)
 
-        # Allow full list for users with files.read
-        # If user is standard operator without broad read, scope to their own files
-        if not current_user.has_permission("files.read") and current_user.role not in ("super_admin", "admin"):
+        # Resource-Level Scoping:
+        # Administrators and guest reviewers view appliance catalog; regular users view their own files.
+        is_admin = current_user.role in ("super_admin", "admin", "storage_admin") or current_user.has_permission("files.manage")
+        is_guest = (current_user.role == "guest")
+        if not is_admin and not is_guest:
             query = query.filter(StoredFile.owner_id == current_user.id)
 
         if search:

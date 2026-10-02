@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class EnvironmentMode(str, Enum):
     SIMULATION = "simulation"
+    DOCKER = "docker"
     RASPBERRY_PI = "raspberry_pi"
 
 
@@ -64,8 +65,14 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "sqlite:///./edgestore.db"
+    MONGO_URI: str = "mongodb://localhost:27017"
+    MONGO_DB_NAME: str = "edgestore_clients"
 
-    # Simulation Storage Paths
+    # Storage Paths (Universal abstraction: works for local, Docker volumes, and simulation)
+    PRIMARY_STORAGE_PATH: Optional[str] = None
+    REPLICA_STORAGE_PATH: Optional[str] = None
+
+    # Simulation Storage Paths (Backward compatibility fallback)
     SIMULATION_PRIMARY_PATH: str = "./simulation/primary"
     SIMULATION_REPLICA_PATH: str = "./simulation/replica"
     SIMULATION_KEY_SD_PATH: str = "./simulation/key_sd"
@@ -83,6 +90,26 @@ class Settings(BaseSettings):
     REPLICATION_INTERVAL_SECONDS: int = 10
     AUTO_RETRY_FAILED_REPLICATIONS: bool = True
     MAX_REPLICATION_RETRIES: int = 3
+
+    # Storage Exhaustion Safeguards & Sharing Defaults
+    MIN_FREE_DISK_BYTES: int = 10 * 1024 * 1024  # 10 MB headroom to avoid full disk lockups
+    DEFAULT_SHARE_EXPIRE_HOURS: int = 24
+
+    # Optional S3-Compatible Storage Provider (for real cloud storage integration)
+    CLOUD_STORAGE_ENABLED: bool = False
+    S3_ENDPOINT_URL: Optional[str] = None
+    S3_BUCKET_NAME: Optional[str] = None
+    S3_ACCESS_KEY: Optional[str] = None
+    S3_SECRET_KEY: Optional[str] = None
+    S3_REGION_NAME: Optional[str] = "us-east-1"
+
+    @property
+    def effective_primary_path(self) -> str:
+        return self.PRIMARY_STORAGE_PATH or self.SIMULATION_PRIMARY_PATH
+
+    @property
+    def effective_replica_path(self) -> str:
+        return self.REPLICA_STORAGE_PATH or self.SIMULATION_REPLICA_PATH
 
     # Power Policy Thresholds (%)
     BATTERY_NORMAL_THRESHOLD: int = 50
@@ -103,10 +130,25 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:8000",
-        "http://127.0.0.1:8000"
+        "http://127.0.0.1:8000",
+        "http://localhost:4200",
+        "http://127.0.0.1:4200",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
     ]
     ENABLE_SECURITY_HEADERS: bool = True
     STRICT_TRANSPORT_SECURITY: bool = False  # Set True in production HTTPS deployment
+
+    # Anti-Bot & DDoS Mitigation Shield
+    DDOS_PROTECTION_ENABLED: bool = True
+    DDOS_BURST_MAX_REQUESTS: int = 40  # Max requests per burst window
+    DDOS_BURST_WINDOW_SECONDS: int = 5  # Sliding window (seconds)
+    DDOS_BAN_DURATION_SECONDS: int = 180  # Temporary quarantine duration (seconds)
+    ANTI_BOT_VERIFIED_CACHE_SECONDS: int = 86400  # 24 hours verified human cache
+    ANTI_BOT_CHALLENGE_EXPIRE_SECONDS: int = 300  # 5 minutes challenge validity
+    REQUIRE_BOT_VERIFICATION_BEFORE_LOGIN: bool = True  # Enforce Not a Robot verification before login
+
+
 
 
 settings = Settings()

@@ -95,26 +95,67 @@ class SimulationStorageProvider(StorageProvider):
             "percent": pct
         }
 
-    def write(self, relative_path: str, data: bytes) -> bool:
-        self._check_io_allowed("write")
-        target = (self.root_path / relative_path).resolve()
-        # Security: Prevent path traversal
-        if not str(target).startswith(str(self.root_path)):
+    def _resolve_safe_path(self, relative_path: str) -> Path:
+        if not relative_path:
+            raise StorageUnavailableException("Empty path rejected")
+        clean_rel = relative_path.replace("\\", "/").lstrip("/")
+        target = (self.root_path / clean_rel).resolve()
+        try:
+            target.relative_to(self.root_path)
+        except ValueError:
             raise StorageUnavailableException("Path traversal attempt detected")
+        return target
+
+    def write(self, relative_path: str, data: bytes) -> bool:
+        import uuid
+        import hashlib
+        self._check_io_allowed("write")
+        target = self._resolve_safe_path(relative_path)
+        data_len = len(data)
+
+        # Capacity and quota headroom validation
+        usage = self.get_usage()
+        if usage["free"] < data_len:
+            raise StorageUnavailableException(f"Disk capacity exhausted on {self.label}. Cannot write {data_len} bytes.")
 
         target.parent.mkdir(parents=True, exist_ok=True)
-        with open(target, "wb") as f:
-            f.write(data)
-        logger.info(f"[{self.label}] Written {len(data)} bytes to {relative_path}")
-        return True
+        tmp_dir = self.root_path / ".tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = tmp_dir / f"{uuid.uuid4().hex}.tmp"
+
+        try:
+            with open(tmp_path, "wb") as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+
+            written_hash = hashlib.sha256(tmp_path.read_bytes()).hexdigest()
+            expected_hash = hashlib.sha256(data).hexdigest()
+            if written_hash != expected_hash:
+                raise StorageUnavailableException("Data integrity verification failed during write")
+
+            os.replace(tmp_path, target)
+            logger.info(f"[{self.label}] Atomically written {data_len} bytes to {relative_path}")
+            return True
+        except Exception as e:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
+            logger.error(f"Write failure on {self.label}: {e}")
+            raise
+        finally:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
 
     def read(self, relative_path: str) -> bytes:
         self._check_io_allowed("read")
-        target = (self.root_path / relative_path).resolve()
-        if not str(target).startswith(str(self.root_path)):
-            raise StorageUnavailableException("Path traversal attempt detected")
-
-        if not target.exists():
+        target = self._resolve_safe_path(relative_path)
+        if not target.exists() or not target.is_file():
             raise FileNotFoundError(f"File {relative_path} does not exist on {self.label}")
 
         with open(target, "rb") as f:
@@ -122,11 +163,8 @@ class SimulationStorageProvider(StorageProvider):
 
     def delete(self, relative_path: str) -> bool:
         self._check_io_allowed("delete")
-        target = (self.root_path / relative_path).resolve()
-        if not str(target).startswith(str(self.root_path)):
-            raise StorageUnavailableException("Path traversal attempt detected")
-
-        if target.exists():
+        target = self._resolve_safe_path(relative_path)
+        if target.exists() and target.is_file():
             target.unlink()
             logger.info(f"[{self.label}] Deleted {relative_path}")
             return True
@@ -135,18 +173,22 @@ class SimulationStorageProvider(StorageProvider):
     def exists(self, relative_path: str) -> bool:
         if not self.is_available():
             return False
-        target = (self.root_path / relative_path).resolve()
-        return target.exists() and str(target).startswith(str(self.root_path))
+        try:
+            target = self._resolve_safe_path(relative_path)
+            return target.exists() and target.is_file()
+        except Exception:
+            return False
 
     def list(self, subpath: str = "") -> List[str]:
         self._check_io_allowed("list")
-        search_dir = (self.root_path / subpath).resolve()
+        search_dir = self._resolve_safe_path(subpath) if subpath else self.root_path
         if not search_dir.exists():
             return []
 
         rel_paths = []
+        tmp_dir = self.root_path / ".tmp"
         for p in search_dir.rglob("*"):
-            if p.is_file() and p.name != ".gitkeep":
+            if p.is_file() and not str(p).startswith(str(tmp_dir)) and p.name != ".gitkeep":
                 rel_paths.append(str(p.relative_to(self.root_path)).replace("\\", "/"))
         return rel_paths
 

@@ -4,6 +4,7 @@ const API_BASE_URL = typeof window !== "undefined" && window.location.port === "
 
 export async function apiRequest(endpoint, options = {}) {
   const token = localStorage.getItem("edgestore_token");
+  const antiBotToken = localStorage.getItem("edgestore_anti_bot_token");
   const headers = {
     ...options.headers,
   };
@@ -11,6 +12,11 @@ export async function apiRequest(endpoint, options = {}) {
   if (token && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+
+  if (antiBotToken && !headers["x-anti-bot-token"]) {
+    headers["x-anti-bot-token"] = antiBotToken;
+  }
+
 
   // If body is not FormData, add JSON header
   if (options.body && !(options.body instanceof FormData)) {

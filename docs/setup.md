@@ -1,69 +1,67 @@
-# EdgeStore Setup Guide
+# ⚡ Quick Setup Guide
 
-This guide details setting up EdgeStore in both **Laptop Simulation Mode** (for development, testing, and evaluation) and **Raspberry Pi 4 Hardware Mode**.
-
----
-
-## 1. Prerequisites
-
-### For Laptop Simulation Development:
-- Python 3.10+ (Tested up to Python 3.14)
-- Node.js 18+ and npm 9+
-- Git
-
-### For Raspberry Pi 4 Physical Deployment:
-- Raspberry Pi 4 Model B (4GB or 8GB recommended)
-- Raspberry Pi OS (64-bit Lite, Debian Bookworm based)
-- MicroSD Card (OS, minimum 16GB)
-- MicroSD Card or USB Flash Drive for **Key-SD**
-- 2x USB 3.0 External Hard Drives (Drive A Primary & Drive B Replica)
-- USB Power Supply (5V / 3A USB-C) or UPS Battery Hat
+Run EdgeStore in **3 easy steps** — just copy and paste into your terminal:
 
 ---
 
-## 2. Laptop Simulation Quickstart
+## 🚀 Step 1: Start EdgeStore
 
-### Step 1: Clone Repository & Create Environment
+Open your terminal in the `EdgeStore` folder and run:
+
 ```bash
-git clone <repository_url> edgestore
-cd edgestore
-python -m venv venv
-# On Windows:
-.\venv\Scripts\activate
-# On Linux/macOS:
-source venv/bin/activate
+docker compose up -d --build
 ```
 
-### Step 2: Install Python Backend Dependencies
+> 💡 **Windows users:** You can simply double-click [`start.bat`](file:///c:/Users/hp/Desktop/EdgeStore/start.bat) instead of using the terminal!
+
+---
+
+## 🌐 Step 2: Open in Your Browser
+
+Click or visit:
+👉 **[http://localhost:8000](http://localhost:8000)**
+
+---
+
+## 🔑 Step 3: Log In
+
+| Field | Value |
+|---|---|
+| **Username** | `admin` |
+| **Password** | `AdminEdgeStore2026!` |
+
+---
+
+## 🛑 How to Stop
+
+When you're finished, paste this command in your terminal:
+
 ```bash
-python -m pip install -r requirements.txt
+docker compose down
 ```
 
-### Step 3: Configure Environment
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-Ensure `ENVIRONMENT_MODE=simulation` is set.
+> 💡 **Windows users:** You can simply double-click [`stop.bat`](file:///c:/Users/hp/Desktop/EdgeStore/stop.bat) to stop everything.
 
-### Step 4: Initialize Database
-```bash
-python -m backend.app.db.init_db
-```
-Default accounts initialized:
-- Administrator: `admin` / `AdminEdgeStore2026!`
-- Standard Operator: `operator` / `OperatorEdgeStore2026!`
+---
 
-### Step 5: Install Frontend Dependencies & Start Dev Servers
-In a terminal:
-```bash
-python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-In another terminal:
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## 📋 Useful Commands (Cheat Sheet)
 
-Navigate to `http://127.0.0.1:5173/` in your browser.
+| Action | Terminal Command |
+|---|---|
+| **Start / Build** | `docker compose up -d --build` |
+| **Stop** | `docker compose down` |
+| **Check Status** | `docker compose ps` |
+| **View Live Logs** | `docker compose logs -f` |
+| **Restart** | `docker compose restart` |
+
+---
+
+## 🔐 Custom Password / Port (Optional)
+
+If you want your own custom login password, custom port, and generated 256-bit secret key, run:
+
+```powershell
+.\deploy-own.ps1
+```
+*(Or double-click [`deploy-own.bat`](file:///c:/Users/hp/Desktop/EdgeStore/deploy-own.bat))*
+
